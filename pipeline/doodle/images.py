@@ -60,25 +60,36 @@ def missing(segments: list[Segment], images_dir: str) -> list[str]:
 
 
 def generate(per_segment_prompts: list[dict], out_dir: str) -> list[str]:
-    """Generate one image per prompt via OpenAI Images (GPT-Image-2). Saves by
-    the manifest filename. No-op-raises if no key is set so callers can fall back
-    to the manual checkpoint.
+    """Generate one image per prompt via the OpenAI Images API (GPT-Image). Saves
+    by the manifest filename. Honors IMAGE_GEN_MODEL / IMAGE_QUALITY / IMAGE_SIZE
+    and falls back to gpt-image-1 if the configured model id is rejected. Raises
+    if no key is set so callers can fall back to the manual checkpoint.
     """
     if not available():
         raise RuntimeError("no image API key set (OPENAI_API_KEY / IMAGE_GEN_API_KEY)")
     import requests  # local import: only needed on the live path
     key = os.getenv("OPENAI_API_KEY") or os.getenv("IMAGE_GEN_API_KEY")
     model = os.getenv("IMAGE_GEN_MODEL", "gpt-image-1")
+    quality = os.getenv("IMAGE_QUALITY", "low")     # low while iterating; high for keepers
+    size = os.getenv("IMAGE_SIZE", "1536x1024")     # landscape; padded to 16:9 (white)
     out = pathlib.Path(out_dir); out.mkdir(parents=True, exist_ok=True)
-    made = []
-    for item in per_segment_prompts:
-        resp = requests.post(
+
+    def _one(prompt: str, mdl: str):
+        return requests.post(
             "https://api.openai.com/v1/images/generations",
             headers={"Authorization": f"Bearer {key}"},
-            json={"model": model, "prompt": item["prompt"],
-                  "size": "1536x1024", "n": 1},
+            json={"model": mdl, "prompt": prompt, "size": size,
+                  "quality": quality, "n": 1},
             timeout=120,
         )
+
+    made = []
+    for item in per_segment_prompts:
+        resp = _one(item["prompt"], model)
+        # graceful fallback if the configured model id isn't valid on this account
+        if resp.status_code in (400, 404) and model != "gpt-image-1" \
+                and "model" in resp.text.lower():
+            resp = _one(item["prompt"], "gpt-image-1")
         resp.raise_for_status()
         b64 = resp.json()["data"][0]["b64_json"]
         target = out / item["filename"]

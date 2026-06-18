@@ -31,7 +31,7 @@ def write_script(topic: str, minutes: float = 6, model: str | None = None) -> st
     if not available():
         return _offline_script(topic, minutes)
     base = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com").rstrip("/")
-    model = model or os.getenv("LLM_MODEL", "claude-opus-4-8")
+    model = model or os.getenv("LLM_MODEL", "claude-sonnet-4-6")
     body = {
         "model": model,
         "max_tokens": min(8000, int(minutes * WPM * 2)),
