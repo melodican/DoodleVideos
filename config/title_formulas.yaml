@@ -1,0 +1,17 @@
+# Proven curiosity-gap title formulas reverse-engineered from breakout channels
+# (Cosmicus, Lone Colonist, Hidden Planet Docs). {slots} are filled at ideation.
+formulas:
+  - "James Webb Just Saw {object} for the First Time — And It's {dread_adj}"
+  - "NASA Just {action} {target} — Here's What They Found"
+  - "What James Webb Just Found on {object} Is {impossible_adj}"
+  - "What Followed {mission} Back From {place} Is {dread_adj}"
+  - "The {dread_adj} {phenomenon} {instrument} Recorded {location}"
+  - "TOP {n} {category} in Space Even Scientists Are Afraid Of"   # listicle = longer runtime
+
+slot_banks:
+  dread_adj: ["Horrifying", "Terrifying", "Deeply Unsettling", "Worse Than Expected"]
+  impossible_adj: ["Impossible", "Shouldn't Exist", "Defies Physics"]
+  instrument: ["James Webb", "NASA", "Artemis II", "the Event Horizon Telescope"]
+  mission: ["Artemis II", "Europa Clipper", "the Parker Solar Probe"]
+
+# Hard rule: titles may be sensational; SCRIPT claims must trace to a real source (see research.py)

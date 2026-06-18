@@ -1,0 +1,31 @@
+# Channel identity & operating parameters
+channel:
+  name: "Cosmic Signal"            # working title — swap freely
+  handle: "@cosmicsignal"
+  niche: "space / cosmic-mystery documentary"
+  voice_persona: "calm, ominous-curious narrator"
+  language: en
+
+format:
+  target_length_min: 18
+  target_length_max: 24
+  structure:
+    - "cold_open_hook (0:00-0:30)"
+    - "what_they_found tease"
+    - "4-6 escalating beats"
+    - "speculative climax"
+    - "soft CTA"
+  mid_rolls: 4
+
+cadence:
+  uploads_per_day: 1
+  publish_time_utc: "16:00"
+
+footage:
+  # All sources must be public-domain / royalty-free for hands-off monetization safety
+  allowed_sources:
+    - "NASA image & video library (public domain)"
+    - "ESA (check per-asset licence)"
+    - "JWST / STScI public releases"
+    - "licensed space stock"
+  music: "royalty-free ambient bed"

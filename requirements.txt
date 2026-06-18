@@ -1,0 +1,12 @@
+# Core
+pyyaml>=6.0
+requests>=2.31
+python-dotenv>=1.0
+# LLM (scripting, ideation, QA) — Anthropic
+anthropic>=0.40
+# YouTube upload
+google-api-python-client>=2.0
+google-auth-oauthlib>=1.2
+# TTS / media (placeholders — swap for chosen providers)
+# elevenlabs, pillow, etc.
+pillow>=10.0
