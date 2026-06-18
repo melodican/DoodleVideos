@@ -1,12 +1,15 @@
-"""Doodle pipeline CLI — covers steps 4-7 of the doodle workflow.
+"""Doodle pipeline CLI — covers steps 1-7 of the doodle workflow.
 
-  # One command, end-to-end (steps 4->7): prompts -> images -> assemble
+  # WHOLE LOOP from a topic (steps 1->7): script -> VO -> timestamps -> prompts -> images -> assemble
+  python -m pipeline.doodle.run make "Why are we the only human species left?" --minutes 6 --out output/
+
+  # One command for steps 4->7 (you already have transcript + VO):
   python -m pipeline.doodle.run auto transcript.txt vo.mp3 --out output/
       # if no image API key: writes prompts and stops at a manual checkpoint.
-      # after you generate images in Higgsfield and download them:
   python -m pipeline.doodle.run auto transcript.txt vo.mp3 --out output/ --images-in raw/
 
   # Or run a single stage:
+  python -m pipeline.doodle.run script "<topic>" --minutes 6 --timestamps --out output/
   python -m pipeline.doodle.run prompts transcript.txt --out output/
   python -m pipeline.doodle.run assemble transcript.txt images/ vo.mp3 --out output/video.mp4
 """
@@ -14,7 +17,7 @@ from __future__ import annotations
 import argparse, pathlib, sys
 from .timestamps import parse
 from .image_prompts import write_manifest, batch_prompt, per_segment_prompts
-from . import assemble, images, script_writer
+from . import assemble, images, script_writer, voiceover
 
 
 def _emit_prompts(segs, out: pathlib.Path):
@@ -87,9 +90,84 @@ def cmd_auto(args):
     print(f"[3/3] rendered: {video}")
 
 
+def _fill_images(segs, out: pathlib.Path, images_dir: pathlib.Path, images_in):
+    """Steps 5-6: fill images_dir by timestamp. Returns True if complete,
+    or exits at the manual checkpoint when no source/key is available."""
+    if images_in:
+        n = len(images.rename_by_order(images_in, segs, str(images_dir)))
+        print(f"      mapped {n} images by timestamp -> {images_dir}")
+    elif images.available():
+        n = len(images.generate(per_segment_prompts(segs), str(images_dir)))
+        print(f"      generated {n} images -> {images_dir}")
+    else:
+        print("      no image API key — MANUAL CHECKPOINT:")
+        print(f"        1) paste {out/'batch_prompt.txt'} into Claude Code (Higgsfield/GPT-Image-2)")
+        print(f"        2) download the images into a folder")
+        print("        3) re-run this command adding:  --images-in <that_folder>")
+        sys.exit(2)
+    miss = images.missing(segs, str(images_dir))
+    if miss:
+        print(f"[!] missing {len(miss)} timestamp images: {miss[:5]}{'...' if len(miss)>5 else ''}")
+        sys.exit(3)
+    return True
+
+
+def cmd_make(args):
+    """Steps 1->7 from a topic."""
+    out = pathlib.Path(args.out); out.mkdir(parents=True, exist_ok=True)
+
+    # [1] script
+    text = script_writer.write_script(args.topic, minutes=args.minutes)
+    (out / "script.txt").write_text(text, encoding="utf-8")
+    smode = "LLM" if script_writer.available() else "offline"
+    print(f"[1/6] script ({smode}): {len(text.split())} words -> {out/'script.txt'}")
+
+    # [2] voiceover
+    audio = args.audio
+    if audio:
+        print(f"[2/6] VO: using provided {audio}")
+    elif voiceover.available():
+        audio = voiceover.synthesize(text, str(out / "vo.mp3"))
+        print(f"[2/6] VO: synthesized -> {audio}")
+    else:
+        print("[2/6] VO: skipped (no ELEVENLABS_API_KEY / TTS_API_KEY)")
+
+    # [3] timestamps (estimated from the script)
+    transcript = script_writer.estimate_timestamps(text)
+    (out / "transcript.txt").write_text(transcript, encoding="utf-8")
+    segs = parse(transcript)
+    print(f"[3/6] timestamps: {len(segs)} segments -> {out/'transcript.txt'} (estimated)")
+
+    # [4] prompts
+    _emit_prompts(segs, out)
+    print(f"[4/6] prompts -> {out/'batch_prompt.txt'}, {out/'image_manifest.json'}")
+
+    # [5-6] images
+    print("[5/6] images:")
+    _fill_images(segs, out, out / "images", args.images_in)
+
+    # [7] assemble
+    if not audio:
+        print("[6/6] assemble: skipped — no VO. Set ELEVENLABS_API_KEY or pass --audio, "
+              "then re-run (images are cached).")
+        sys.exit(2)
+    video = assemble.render(segs, str(out / "images"), audio,
+                            out_path=str(out / "video.mp4"))
+    print(f"[6/6] rendered: {video}")
+
+
 def main():
-    ap = argparse.ArgumentParser(description="Doodle explainer pipeline (steps 4-7)")
+    ap = argparse.ArgumentParser(description="Doodle explainer pipeline (steps 1-7)")
     sub = ap.add_subparsers(required=True)
+
+    mk = sub.add_parser("make", help="whole loop from a topic (steps 1->7)")
+    mk.add_argument("topic")
+    mk.add_argument("--minutes", type=float, default=6)
+    mk.add_argument("--out", default="output")
+    mk.add_argument("--images-in", default=None,
+                    help="folder of externally-generated images (mapped by order)")
+    mk.add_argument("--audio", default=None, help="use an existing VO file instead of ElevenLabs")
+    mk.set_defaults(func=cmd_make)
 
     s = sub.add_parser("script", help="topic -> doodle narration (LLM or offline)")
     s.add_argument("topic")

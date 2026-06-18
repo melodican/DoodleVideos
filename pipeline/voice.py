@@ -1,11 +1,12 @@
-"""[4] VOICE — TTS with the consistent brand narrator voice."""
+"""[4] VOICE — TTS with the consistent brand narrator voice (ElevenLabs)."""
 from __future__ import annotations
-import os, logging
+import logging
+from .doodle import voiceover
 log = logging.getLogger("pipeline.voice")
 
 
-def synthesize(script_text: str) -> str | None:
-    if not os.getenv("TTS_API_KEY"):
-        log.info("voice: skipped (no TTS_API_KEY)")
+def synthesize(script_text: str, out_path: str = "output/vo.mp3") -> str | None:
+    if not voiceover.available():
+        log.info("voice: skipped (no ELEVENLABS_API_KEY / TTS_API_KEY)")
         return None
-    raise NotImplementedError("Wire TTS provider (voice id from .env).")
+    return voiceover.synthesize(script_text, out_path)

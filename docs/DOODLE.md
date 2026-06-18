@@ -9,14 +9,28 @@ full autonomy.
 | # | Step | Tool | Status in this repo |
 |---|------|------|---------------------|
 | 1 | Script | LLM | ✅ `doodle.run script "<topic>"` (Anthropic API, else offline draft) |
-| 2 | Voiceover | ElevenLabs | external (your env); save as `vo.mp3` |
-| 3 | Transcript w/ timestamps | TurboScribe | export to `transcript.txt`, **or** `--timestamps` estimates it |
+| 2 | Voiceover | ElevenLabs | ✅ auto via `ELEVENLABS_API_KEY`, else `--audio vo.mp3` |
+| 3 | Transcript w/ timestamps | TurboScribe | export to `transcript.txt`, **or** estimated automatically |
 | 4 | One image prompt per timestamp | — | ✅ `doodle.run prompts` builds them (locked style) |
 | 5 | Generate images | Higgsfield / GPT Image 2 | ✅ auto via `OPENAI_API_KEY`, else manual checkpoint |
 | 6 | Rename images by timestamp | — | ✅ `--images-in` maps a downloaded folder by order → `M_SS.png` |
 | 7 | **Edit images + VO on a timeline** | ~~CapCut (manual)~~ | ✅ **assembled with ffmpeg** — no manual editing |
 
 ## Usage
+
+### Whole loop from a topic (steps 1→7)
+```bash
+python -m pipeline.doodle.run make "Why are we the only human species left?" \
+    --minutes 6 --out output/
+```
+Chains script → VO → estimated timestamps → prompts → images → assemble. Each
+external stage gracefully degrades when its key is missing:
+- no `ANTHROPIC_API_KEY` → offline script draft
+- no `ELEVENLABS_API_KEY` → VO skipped (pass `--audio vo.mp3`, or set the key)
+- no image key → stops at the manual checkpoint; resume with `--images-in <folder>`
+
+With all keys set (and `ffmpeg` on PATH) it runs topic → finished `video.mp4`
+unattended.
 
 ### Step 1: topic → doodle script
 ```bash
