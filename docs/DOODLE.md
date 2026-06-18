@@ -12,19 +12,30 @@ full autonomy.
 | 2 | Voiceover | ElevenLabs | external (your env); save as `vo.mp3` |
 | 3 | Transcript w/ timestamps | TurboScribe | export to `transcript.txt` |
 | 4 | One image prompt per timestamp | — | ✅ `doodle.run prompts` builds them (locked style) |
-| 5 | Generate images | Higgsfield / GPT Image 2 | external; feed it `image_manifest.json` or `batch_prompt.txt` |
-| 6 | Rename images by timestamp | — | name them `M_SS.png` (e.g. `0_07.png`) — matches `Segment.filename` |
-| 7 | **Edit images + VO on a timeline** | ~~CapCut (manual)~~ | ✅ **`doodle.run assemble`** does this with ffmpeg — no manual editing |
+| 5 | Generate images | Higgsfield / GPT Image 2 | ✅ auto via `OPENAI_API_KEY`, else manual checkpoint |
+| 6 | Rename images by timestamp | — | ✅ `--images-in` maps a downloaded folder by order → `M_SS.png` |
+| 7 | **Edit images + VO on a timeline** | ~~CapCut (manual)~~ | ✅ **assembled with ffmpeg** — no manual editing |
 
 ## Usage
-```bash
-# Step 4: from the TurboScribe transcript, emit prompts for Higgsfield
-python -m pipeline.doodle.run prompts transcript.txt --out output/
-#   -> output/image_manifest.json  (one {timestamp, filename, prompt} per image)
-#   -> output/batch_prompt.txt     (single paste-in prompt: instructions+style+script)
 
-# Step 7: once images are generated and named 0_00.png, 0_07.png, ...
-python -m pipeline.doodle.run assemble transcript.txt images/ vo.mp3 --out output/video.mp4
+### One command (steps 4→7)
+```bash
+python -m pipeline.doodle.run auto transcript.txt vo.mp3 --out output/
+```
+- **With an image API key** (`OPENAI_API_KEY` / `IMAGE_GEN_API_KEY`): generates every
+  frame, then assembles `output/video.mp4`. Fully autonomous.
+- **Without a key**: writes the prompts and stops at a **manual checkpoint** (exit 2).
+  Generate the images in Higgsfield, download the folder, then resume:
+  ```bash
+  python -m pipeline.doodle.run auto transcript.txt vo.mp3 --out output/ --images-in raw_images/
+  ```
+  `--images-in` maps the downloaded images onto timestamp filenames **in order**
+  (generation order == script order) and fails loudly on a count mismatch.
+
+### Individual stages
+```bash
+python -m pipeline.doodle.run prompts   transcript.txt --out output/
+python -m pipeline.doodle.run assemble  transcript.txt images/ vo.mp3 --out output/video.mp4
 ```
 
 ## Consistency

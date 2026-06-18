@@ -36,3 +36,10 @@ metadata, QA gate). Stages 4/5/9 (voice, Vid Rush render, YouTube upload) gracef
 skip until their API keys are set in `.env`, then drop in via the documented TODOs.
 
 Run tests: `python -m pytest tests/`
+
+## Doodle (Axen/Ink) channel
+Second pipeline for the MS-Paint explainer niche. One command covers steps 4-7:
+```bash
+python -m pipeline.doodle.run auto transcript.txt vo.mp3 --out output/
+```
+See `docs/DOODLE.md`.
