@@ -14,7 +14,7 @@ from __future__ import annotations
 import argparse, pathlib, sys
 from .timestamps import parse
 from .image_prompts import write_manifest, batch_prompt, per_segment_prompts
-from . import assemble, images
+from . import assemble, images, script_writer
 
 
 def _emit_prompts(segs, out: pathlib.Path):
@@ -38,6 +38,20 @@ def cmd_assemble(args):
     out = assemble.render(segs, args.images, args.audio, out_path=args.out,
                           audio_seconds=args.audio_seconds)
     print(f"rendered: {out}")
+
+
+def cmd_script(args):
+    text = script_writer.write_script(args.topic, minutes=args.minutes)
+    out = pathlib.Path(args.out); out.mkdir(parents=True, exist_ok=True)
+    script_path = out / "script.txt"
+    script_path.write_text(text, encoding="utf-8")
+    mode = "LLM" if script_writer.available() else "offline-fallback"
+    print(f"[script:{mode}] {len(text.split())} words -> {script_path}")
+    if args.timestamps:
+        tr = out / "transcript.txt"
+        tr.write_text(script_writer.estimate_timestamps(text), encoding="utf-8")
+        print(f"[timestamps] estimated transcript -> {tr}")
+        print("  note: estimated timing; for tight sync use real TurboScribe output.")
 
 
 def cmd_auto(args):
@@ -76,6 +90,14 @@ def cmd_auto(args):
 def main():
     ap = argparse.ArgumentParser(description="Doodle explainer pipeline (steps 4-7)")
     sub = ap.add_subparsers(required=True)
+
+    s = sub.add_parser("script", help="topic -> doodle narration (LLM or offline)")
+    s.add_argument("topic")
+    s.add_argument("--minutes", type=float, default=6)
+    s.add_argument("--out", default="output")
+    s.add_argument("--timestamps", action="store_true",
+                   help="also write an estimated TurboScribe-shaped transcript.txt")
+    s.set_defaults(func=cmd_script)
 
     p = sub.add_parser("prompts"); p.add_argument("transcript")
     p.add_argument("--out", default="output"); p.set_defaults(func=cmd_prompts)

@@ -8,15 +8,27 @@ full autonomy.
 
 | # | Step | Tool | Status in this repo |
 |---|------|------|---------------------|
-| 1 | Script | LLM | use `pipeline/script.py` (or paste your own) |
+| 1 | Script | LLM | ✅ `doodle.run script "<topic>"` (Anthropic API, else offline draft) |
 | 2 | Voiceover | ElevenLabs | external (your env); save as `vo.mp3` |
-| 3 | Transcript w/ timestamps | TurboScribe | export to `transcript.txt` |
+| 3 | Transcript w/ timestamps | TurboScribe | export to `transcript.txt`, **or** `--timestamps` estimates it |
 | 4 | One image prompt per timestamp | — | ✅ `doodle.run prompts` builds them (locked style) |
 | 5 | Generate images | Higgsfield / GPT Image 2 | ✅ auto via `OPENAI_API_KEY`, else manual checkpoint |
 | 6 | Rename images by timestamp | — | ✅ `--images-in` maps a downloaded folder by order → `M_SS.png` |
 | 7 | **Edit images + VO on a timeline** | ~~CapCut (manual)~~ | ✅ **assembled with ffmpeg** — no manual editing |
 
 ## Usage
+
+### Step 1: topic → doodle script
+```bash
+python -m pipeline.doodle.run script "Why are we the only human species left?" \
+    --minutes 6 --timestamps --out output/
+#   -> output/script.txt       (narration; Axen/Ink voice)
+#   -> output/transcript.txt    (estimated timestamps — feeds steps 4-7 directly)
+```
+Uses the Anthropic API when `ANTHROPIC_API_KEY` is set; otherwise writes a styled
+offline draft so the loop still runs. `--timestamps` estimates timing from word
+count (≈150 wpm) so you can run the whole 1→7 loop without TurboScribe — for
+frame-tight sync, generate the VO and use real TurboScribe output instead.
 
 ### One command (steps 4→7)
 ```bash
