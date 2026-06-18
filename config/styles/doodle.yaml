@@ -1,0 +1,36 @@
+# Doodle / MS-Paint explainer style (the Axen / Ink Explainer look).
+# This is the LOCKED style block appended to every per-timestamp image prompt so
+# all frames in a video share one visual language.
+style:
+  name: "doodle"
+  model: "GPT Image 2"
+  aspect_ratio: "16:9"
+  # Keep a reference image path to pass to Higgsfield for cross-frame consistency.
+  reference_image: ""          # optional: path to a locked style reference
+
+  block: |
+    STYLE REQUIREMENTS:
+    The image style must look like extremely simple beginner drawings made in MS Paint.
+    It should look like someone who is not good at drawing created it quickly by hand.
+    Use a very simple stickman / childish drawing style:
+    - White background
+    - Thick, uneven black outlines
+    - Wobbly hand-drawn lines
+    - Stick figure humans with round heads and line bodies
+    - Simple dot eyes or circle eyes
+    - Very basic facial expressions
+    - Flat colors only
+    - No realistic shading, 3D, cinematic lighting, cartoon/Disney/anime style,
+      polished illustration, professional vector art, detailed backgrounds,
+      complex textures, realistic humans, or glossy/modern design.
+    The drawings should feel amateur, funny, simple, and intentionally "bad."
+    Objects use basic shapes: squares, circles, rectangles, arrows, tables, boxes,
+    trees, rooms, signs, screens, stickmen, question marks, simple symbols.
+    Occasional flat colors: green, brown, gray, red, yellow, orange, blue.
+    Red arrows or red question marks when needed.
+    Handwritten text only when it helps; if text appears it must be spelled
+    correctly, short, and easy to read.
+    FORMAT: horizontal 16:9 wide YouTube frame (not vertical, not square).
+    Clear, readable, centered. Do not crop important objects. Leave space around
+    characters. Avoid glitches, broken anatomy, unreadable text, messy overlaps.
+    Do not make the drawings look too good, polished, or professional.

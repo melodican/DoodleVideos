@@ -11,6 +11,11 @@ niche. Designed to be driven by Claude Code on a daily schedule, end-to-end:
 - **High watch time:** 18–24 min docs with 3–4 mid-rolls.
 - **Automation-safe:** public-domain footage (NASA / ESA / JWST), evergreen, infinite topics, zero copyright/news dependency.
 
+## Two channel styles
+- **Space documentary** (Vid Rush footage) — see `docs/PIPELINE.md`.
+- **Doodle explainer** (MS-Paint / Axen-Ink style, Higgsfield + ffmpeg) — see `docs/DOODLE.md`.
+  Fully scripted assembly replaces the manual CapCut edit.
+
 ## Pipeline stages
 See `docs/PIPELINE.md`. Each stage is a module in `pipeline/` and is chained by `pipeline/run.py`.
 
