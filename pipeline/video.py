@@ -1,11 +1,11 @@
-"""[5] VIDEO — assemble the documentary via Vid Rush.
-
-Feed narration + grounded shot list (NASA/ESA public-domain footage) + ambient
-bed + captions. Enforce only allowed (public-domain/licensed) footage sources.
-"""
+"""[5] VIDEO — assemble the documentary via Vid Rush."""
 from __future__ import annotations
+import os, logging
+log = logging.getLogger("pipeline.video")
 
 
-def render(voice_path: str, sources: list[dict]) -> str:
-    """Return path to rendered mp4. TODO: call Vid Rush API."""
+def render(voice_path, sources) -> str | None:
+    if not os.getenv("VIDRUSH_API_KEY"):
+        log.info("video: skipped (no VIDRUSH_API_KEY)")
+        return None
     raise NotImplementedError("Integrate Vid Rush render job + poll for result.")

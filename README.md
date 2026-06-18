@@ -22,4 +22,12 @@ python -m pipeline.run --dry-run     # run the chain without uploading
 ```
 
 ## Status
-Scaffold. Stages contain documented interfaces + TODOs. Wire in Vid Rush + YouTube Data API keys to go live.
+**Runnable offline.** `python -m pipeline.run --dry-run --seed 1` produces a complete,
+QA-passing video brief in `output/` (title, cited facts, script, thumbnail concepts,
+description, tags, chapters) with no API keys.
+
+Stages 1-3, 6-8 are implemented (ideation, grounding, script, thumbnail concepts,
+metadata, QA gate). Stages 4/5/9 (voice, Vid Rush render, YouTube upload) gracefully
+skip until their API keys are set in `.env`, then drop in via the documented TODOs.
+
+Run tests: `python -m pytest tests/`

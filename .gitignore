@@ -7,3 +7,6 @@ __pycache__/
 *.wav
 *.png
 .venv/
+
+# runtime state
+/state/*.json

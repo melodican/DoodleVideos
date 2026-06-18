@@ -1,0 +1,112 @@
+# Curated library of real space subjects with verifiable, cited facts.
+# Every `claim` must trace to `source_url`. Dramatic framing happens in titles,
+# NOT here. The script may only assert claims grounded in this file (or live research).
+topics:
+  - id: europa_ocean
+    subject: "Europa's subsurface ocean"
+    object: "Europa"
+    place: "Jupiter's moon"
+    anchor: "Europa Clipper"
+    thumbnail_subject: "cracked icy moon over Jupiter"
+    facts:
+      - claim: "Europa likely hides a global saltwater ocean beneath its ice shell, possibly holding more than twice the water of all Earth's oceans."
+        source_name: "NASA Science — Europa"
+        source_url: "https://science.nasa.gov/jupiter/moons/europa/"
+      - claim: "NASA's Europa Clipper launched in October 2024 to assess whether Europa could support life."
+        source_name: "NASA — Europa Clipper"
+        source_url: "https://europa.nasa.gov/"
+      - claim: "Europa's surface is crisscrossed by reddish cracks that may carry material from the ocean below."
+        source_name: "NASA Science — Europa"
+        source_url: "https://science.nasa.gov/jupiter/moons/europa/"
+
+  - id: parker_sun
+    subject: "Parker Solar Probe touching the Sun"
+    object: "the Sun"
+    place: "the solar corona"
+    anchor: "Parker Solar Probe"
+    thumbnail_subject: "spacecraft skimming a fiery solar surface"
+    facts:
+      - claim: "In 2021 NASA's Parker Solar Probe flew through the Sun's upper atmosphere, the corona, the first spacecraft ever to do so."
+        source_name: "NASA — Parker enters solar atmosphere"
+        source_url: "https://www.nasa.gov/news-release/nasa-enters-the-solar-atmosphere-for-the-first-time-bringing-new-discoveries/"
+      - claim: "Parker is designed to endure temperatures around 1,400 C using a carbon-composite heat shield."
+        source_name: "NASA — Parker Solar Probe"
+        source_url: "https://science.nasa.gov/mission/parker-solar-probe/"
+
+  - id: jwst_first_light
+    subject: "James Webb's deepest view of the early universe"
+    object: "the early universe"
+    place: "deep space"
+    anchor: "James Webb Space Telescope"
+    thumbnail_subject: "deep-field galaxies glowing in infrared"
+    facts:
+      - claim: "JWST launched on 25 December 2021 and released its first full-color images in July 2022."
+        source_name: "NASA — Webb"
+        source_url: "https://science.nasa.gov/mission/webb/"
+      - claim: "Webb observes in infrared, letting it see some of the earliest galaxies that formed after the Big Bang."
+        source_name: "NASA — Webb science"
+        source_url: "https://science.nasa.gov/mission/webb/science-overview/"
+
+  - id: sagittarius_a
+    subject: "The supermassive black hole at the Milky Way's center"
+    object: "Sagittarius A*"
+    place: "the galactic center"
+    anchor: "the Event Horizon Telescope"
+    thumbnail_subject: "glowing accretion ring of a black hole"
+    facts:
+      - claim: "Sagittarius A* is a supermassive black hole about 4 million times the mass of the Sun at the center of our galaxy."
+        source_name: "NASA — Sagittarius A*"
+        source_url: "https://science.nasa.gov/universe/black-holes/"
+      - claim: "The Event Horizon Telescope released the first image of Sagittarius A* in May 2022."
+        source_name: "Event Horizon Telescope"
+        source_url: "https://eventhorizontelescope.org/"
+
+  - id: artemis_ii
+    subject: "Artemis II, humanity's return toward the Moon"
+    object: "the Moon"
+    place: "lunar orbit"
+    anchor: "Artemis II"
+    thumbnail_subject: "Orion capsule with Earth and Moon behind"
+    facts:
+      - claim: "Artemis II will be the first crewed Artemis mission, sending four astronauts on a flyby around the Moon without landing."
+        source_name: "NASA — Artemis II"
+        source_url: "https://www.nasa.gov/mission/artemis-ii/"
+      - claim: "It will be the first time humans travel near the Moon since Apollo 17 in 1972."
+        source_name: "NASA — Artemis"
+        source_url: "https://www.nasa.gov/artemis/"
+
+  - id: voyager1
+    subject: "Voyager 1, the most distant human-made object"
+    object: "Voyager 1"
+    place: "interstellar space"
+    anchor: "NASA Voyager"
+    thumbnail_subject: "tiny probe against a vast starfield"
+    facts:
+      - claim: "Voyager 1 crossed into interstellar space in 2012 and remains the most distant human-made object."
+        source_name: "NASA JPL — Voyager"
+        source_url: "https://voyager.jpl.nasa.gov/"
+      - claim: "Despite launching in 1977, Voyager 1 still communicates with Earth across more than 24 billion km."
+        source_name: "NASA JPL — Voyager mission status"
+        source_url: "https://voyager.jpl.nasa.gov/mission/status/"
+
+  - id: wasp39b_co2
+    subject: "The first clear sign of CO2 in an alien atmosphere"
+    object: "WASP-39b"
+    place: "an exoplanet 700 light-years away"
+    anchor: "James Webb Space Telescope"
+    thumbnail_subject: "hot gas giant silhouetted against its star"
+    facts:
+      - claim: "In 2022 JWST made the first clear detection of carbon dioxide in the atmosphere of an exoplanet, the hot gas giant WASP-39b."
+        source_name: "NASA — Webb detects CO2"
+        source_url: "https://science.nasa.gov/missions/webb/nasas-webb-detects-carbon-dioxide-in-exoplanet-atmosphere/"
+
+  - id: uranus_rings
+    subject: "James Webb's haunting view of Uranus"
+    object: "Uranus"
+    place: "the outer solar system"
+    anchor: "James Webb Space Telescope"
+    thumbnail_subject: "pale ringed planet glowing in the dark"
+    facts:
+      - claim: "JWST imaged Uranus in 2023, revealing its faint rings and a bright polar cap with striking clarity."
+        source_name: "NASA — Webb images Uranus"
+        source_url: "https://science.nasa.gov/missions/webb/"
