@@ -80,12 +80,10 @@ def generate(per_segment_prompts: list[dict], out_dir: str, on_progress=None) ->
             headers={"Authorization": f"Bearer {key}"},
             json={"model": mdl, "prompt": prompt, "size": size,
                   "quality": quality, "n": 1},
-            timeout=120,
+            timeout=180,
         )
 
-    made = []
-    total = len(per_segment_prompts)
-    for idx, item in enumerate(per_segment_prompts, 1):
+    def _make(item: dict) -> str:
         resp = _one(item["prompt"], model)
         # graceful fallback if the configured model id isn't valid on this account
         if resp.status_code in (400, 404) and model != "gpt-image-1" \
@@ -95,7 +93,27 @@ def generate(per_segment_prompts: list[dict], out_dir: str, on_progress=None) ->
         b64 = resp.json()["data"][0]["b64_json"]
         target = out / item["filename"]
         target.write_bytes(base64.b64decode(b64))
-        made.append(str(target))
-        if on_progress:
-            on_progress(idx, total)
+        return str(target)
+
+    total = len(per_segment_prompts)
+    workers = max(1, int(os.getenv("IMAGE_CONCURRENCY", "5")))
+    if workers == 1:
+        made = []
+        for idx, item in enumerate(per_segment_prompts, 1):
+            made.append(_make(item))
+            if on_progress:
+                on_progress(idx, total)
+        return made
+
+    # generate several images at once (much faster; same cost)
+    import concurrent.futures, threading
+    made, done, lock = [], [0], threading.Lock()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = [ex.submit(_make, it) for it in per_segment_prompts]
+        for fut in concurrent.futures.as_completed(futures):
+            path = fut.result()  # raises on any failure
+            with lock:
+                made.append(path); done[0] += 1
+                if on_progress:
+                    on_progress(done[0], total)
     return made

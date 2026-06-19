@@ -38,3 +38,15 @@ def test_durations_and_concat():
     assert abs(sum(d for _, d in pro) - 80.0) < 0.5
     concat = build_concat_file(durs, "imgs")
     assert concat.count("file '") == len(durs) + 1  # last-file repeat
+
+
+def test_group_segments_merges_to_min_seconds():
+    from pipeline.doodle.timestamps import group_segments
+    segs = parse("0:00 a\n0:02 b\n0:04 c\n0:06 d\n0:20 e")
+    grouped = group_segments(segs, 8)
+    # first group spans 0-8s (a..d merged), then e -> fewer than 5
+    assert len(grouped) < len(segs)
+    assert grouped[0].start == 0.0
+    assert "a" in grouped[0].text and "b" in grouped[0].text
+    # zero/negative leaves it untouched
+    assert len(group_segments(segs, 0)) == len(segs)

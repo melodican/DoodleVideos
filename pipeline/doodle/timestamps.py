@@ -62,3 +62,29 @@ def build_segments(segs: list[Segment]) -> list[Segment]:
         s.index = i
         s.end = segs[i + 1].start if i + 1 < len(segs) else None
     return segs
+
+
+def group_segments(segs: list[Segment], min_seconds: float) -> list[Segment]:
+    """Merge consecutive segments so each spans at least `min_seconds`.
+
+    Fewer, longer scenes = fewer images to generate (less cost + time) while
+    keeping real timing. `min_seconds <= 0` returns the segments unchanged.
+    """
+    if min_seconds <= 0 or not segs:
+        return segs
+    segs = sorted(segs, key=lambda s: s.start)
+    merged: list[Segment] = []
+    cur = None
+    for s in segs:
+        if cur is None:
+            cur = Segment(index=0, start=s.start, label=s.label, text=s.text, end=s.end)
+        else:
+            cur.text = f"{cur.text} {s.text}".strip()
+            cur.end = s.end
+        span = (cur.end if cur.end is not None else s.start) - cur.start
+        if span >= min_seconds:
+            merged.append(cur); cur = None
+    if cur is not None:
+        merged.append(cur)
+    return build_segments(merged)
+

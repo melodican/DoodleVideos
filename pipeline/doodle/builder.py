@@ -4,8 +4,9 @@ Shared by the CLI and the web dashboard. Reports progress via a callback so a UI
 can show live status (transcribing / image N of M / assembling).
 """
 from __future__ import annotations
-import pathlib
+import os, pathlib
 from . import transcribe, images, assemble
+from .timestamps import group_segments
 from .image_prompts import write_manifest, batch_prompt, per_segment_prompts
 
 
@@ -38,6 +39,8 @@ def build_project(project_dir: str, audio_path: str | None = None,
 
     progress("transcribe", f"Transcribing {vo.name}…")
     segs = transcribe.transcribe(str(vo))
+    # merge short segments into longer scenes -> fewer images (less cost + time)
+    segs = group_segments(segs, float(os.getenv("SECONDS_PER_IMAGE", "8")))
     (proj / "transcript.txt").write_text(transcribe.to_transcript_text(segs), encoding="utf-8")
     write_manifest(segs, str(proj / "image_manifest.json"))
     (proj / "batch_prompt.txt").write_text(batch_prompt(segs), encoding="utf-8")
