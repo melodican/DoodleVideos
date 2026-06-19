@@ -69,7 +69,7 @@ def render(segments: list[Segment], images_dir: str, audio_path: str,
     concat_path.write_text(build_concat_file(durations, images_dir))
     pathlib.Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "ffmpeg", "-y",
+        "ffmpeg", "-y", "-nostdin",
         "-f", "concat", "-safe", "0", "-i", str(concat_path),
         "-i", audio_path,
         "-vf", "scale=1920:1080:force_original_aspect_ratio=increase,"
@@ -77,5 +77,5 @@ def render(segments: list[Segment], images_dir: str, audio_path: str,
         "-r", str(fps), "-c:v", "libx264", "-c:a", "aac",
         "-shortest", out_path,
     ]
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stdin=subprocess.DEVNULL)
     return out_path
