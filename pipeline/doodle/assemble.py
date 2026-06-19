@@ -10,14 +10,17 @@ from .timestamps import Segment
 
 
 def compute_durations(segments: list[Segment], audio_seconds: float) -> list[tuple[str, float]]:
-    """Return [(filename, duration_seconds)] using consecutive timestamps,
-    with the final image holding until audio end."""
-    out = []
-    for i, s in enumerate(segments):
-        end = s.end if s.end is not None else audio_seconds
-        dur = max(0.1, round(end - s.start, 3))
-        out.append((s.filename, dur))
-    return out
+    """Distribute the full audio across images in proportion to each segment's
+    word count.
+
+    The narration is read at a roughly uniform pace, so an image whose line has
+    twice the words should stay on screen about twice as long. This keeps frames
+    in sync with any voiceover of the same text (e.g. dropped-in ElevenLabs
+    audio) without needing exact per-word timestamps."""
+    weights = [max(1, len(s.text.split())) for s in segments]
+    total = sum(weights) or 1
+    return [(s.filename, max(0.3, round(audio_seconds * w / total, 3)))
+            for s, w in zip(segments, weights)]
 
 
 def build_concat_file(durations: list[tuple[str, float]], images_dir: str) -> str:

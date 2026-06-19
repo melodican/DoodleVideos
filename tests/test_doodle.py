@@ -30,7 +30,10 @@ def test_prompts_one_per_segment_with_style():
 def test_durations_and_concat():
     segs = parse(T)
     durs = compute_durations(segs, audio_seconds=80.0)
-    assert durs[0] == ("0_00.png", 7)
-    assert durs[-1][1] == 18.0  # 80 - 62
+    assert durs[0][0] == "0_00.png"
+    # word-proportional distribution fills (about) the whole audio
+    assert abs(sum(d for _, d in durs) - 80.0) < 0.5
+    # the shortest line ("hour-ish mark", 2 words) gets the least screen time
+    assert durs[-1][1] == min(d for _, d in durs)
     concat = build_concat_file(durs, "imgs")
     assert concat.count("file '") == len(durs) + 1  # last-file repeat
