@@ -23,7 +23,7 @@ def test_to_seconds_hms():
 def test_prompts_one_per_segment_with_style():
     segs = parse(T); ps = per_segment_prompts(segs)
     assert len(ps) == len(segs)
-    assert "MS-Paint" in ps[0]["prompt"] or "MS Paint" in ps[0]["prompt"]
+    assert "doodle" in ps[0]["prompt"].lower()
     assert ps[0]["aspect_ratio"] == "16:9"
 
 
