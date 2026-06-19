@@ -7,10 +7,44 @@ TurboScribe-shaped transcript so the doodle pipeline can run without TurboScribe
 (approximate timing; for tight sync use real TurboScribe output).
 """
 from __future__ import annotations
-import os, json, pathlib, re, urllib.request
+import os, json, pathlib, re, shutil, subprocess, urllib.request
 
-_PROMPT = pathlib.Path(__file__).parent.parent.parent / "prompts" / "doodle_script.md"
+_ROOT = pathlib.Path(__file__).parent.parent.parent
+_PROMPT = _ROOT / "prompts" / "doodle_script.md"
+_FINANCE_PROMPT = _ROOT / "prompts" / "finance_script.md"
 WPM = 150
+
+
+def claude_code_available() -> bool:
+    """True if the Claude Code CLI is installed (used for subscription, no API credits)."""
+    return shutil.which("claude") is not None
+
+
+def generate_via_claude_code(topic: str, prompt_path: str | None = None) -> dict:
+    """Generate a script using the local Claude Code CLI on the user's SUBSCRIPTION
+    (no API credits). We strip ANTHROPIC_API_KEY from the child env so Claude Code
+    uses the logged-in subscription rather than billing the API.
+
+    Returns {"script": narration, "extras": titles/thumbnail block}.
+    """
+    if not claude_code_available():
+        raise RuntimeError("Claude Code CLI ('claude') not found on PATH. "
+                           "Install it and run `claude` once to log in with your subscription.")
+    tmpl = pathlib.Path(prompt_path or _FINANCE_PROMPT).read_text(encoding="utf-8")
+    prompt = tmpl.replace("{topic}", topic)
+    env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+    proc = subprocess.run(["claude", "-p", prompt], capture_output=True, text=True,
+                          timeout=600, stdin=subprocess.DEVNULL, env=env)
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or "claude CLI failed").strip()[:400])
+    return split_script(proc.stdout.strip())
+
+
+def split_script(text: str) -> dict:
+    """Split the model output into the narration and the trailing titles/thumbnail."""
+    parts = re.split(r"\n-{3,}\s*\n", text, maxsplit=1)
+    return {"script": parts[0].strip(),
+            "extras": parts[1].strip() if len(parts) > 1 else ""}
 
 
 def _render_prompt(topic: str, minutes: float) -> str:

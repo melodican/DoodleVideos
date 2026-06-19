@@ -8,6 +8,7 @@ import threading, uuid, re, pathlib
 from flask import Flask, request, jsonify, render_template_string, send_file, abort
 
 from pipeline.doodle.builder import build_project, NeedImages
+from pipeline.doodle import script_writer
 
 ROOT = pathlib.Path(__file__).parent.parent
 PROJECTS = ROOT / "projects"
@@ -43,13 +44,33 @@ PAGE = """
   <input type="text" name="name" placeholder="why-cities-never-sleep" required>
   <label>Voiceover (mp3 / m4a / wav)</label>
   <input type="file" name="audio" accept="audio/*" required>
-  <label>Script <small>(optional — saved for your records)</small></label>
-  <textarea name="script" placeholder="Paste the script here (optional)"></textarea>
+  <label>Script <small>(optional — timing comes from the audio)</small></label>
+  <div style="display:flex;gap:8px;align-items:center">
+    <input type="text" id="topic" placeholder="Topic, e.g. What actually is tax?">
+    <button type="button" id="gen" style="margin:0;white-space:nowrap">✨ Write with Claude</button>
+  </div>
+  <textarea name="script" id="script" placeholder="Paste a script, or generate one above. (Copy it into ElevenLabs to make your voiceover.)"></textarea>
+  <div id="titles"><small></small></div>
   <button type="submit">Generate Video</button>
 </form>
 <div id="status"><b id="stage">Starting…</b><div class="bar"><div id="fill"></div></div>
   <div id="detail"><small></small></div><div id="result"></div></div>
 <script>
+const gen=document.getElementById('gen'), topic=document.getElementById('topic'),
+      scriptBox=document.getElementById('script'), titles=document.querySelector('#titles small');
+gen.onclick=async()=>{
+  if(!topic.value.trim()){topic.focus();return;}
+  gen.disabled=true; const old=gen.textContent; gen.textContent='Writing… (~30s)';
+  titles.textContent='';
+  try{
+    const r=await fetch('/script',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({topic:topic.value.trim()})});
+    const j=await r.json();
+    if(j.error){titles.textContent='Error: '+j.error;}
+    else{scriptBox.value=j.script; if(j.extras) titles.textContent=j.extras;}
+  }catch(e){titles.textContent='Error: '+e;}
+  gen.disabled=false; gen.textContent=old;
+};
 const f=document.getElementById('f'), s=document.getElementById('status'),
       stage=document.getElementById('stage'), fill=document.getElementById('fill'),
       detail=document.querySelector('#detail small'), result=document.getElementById('result'),
@@ -122,6 +143,19 @@ def build():
 
     threading.Thread(target=run, daemon=True).start()
     return jsonify(job=job)
+
+
+@app.route("/script", methods=["POST"])
+def script():
+    topic = (request.get_json(silent=True) or {}).get("topic", "").strip()
+    if not topic:
+        return jsonify(error="Please enter a topic."), 400
+    try:
+        # Uses the Claude Code CLI on your subscription — no API credits.
+        result = script_writer.generate_via_claude_code(topic)
+        return jsonify(result)
+    except Exception as e:  # noqa: BLE001
+        return jsonify(error=str(e)), 500
 
 
 @app.route("/status/<job>")

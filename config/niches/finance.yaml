@@ -1,0 +1,36 @@
+# Finance / money-explainer niche (doodle format). Pairs with config/styles/doodle.yaml.
+niche:
+  name: "Money, Explained Like You're 5"
+  handle: "@money-eli5"
+  category: "personal finance"
+  scriptwriter_prompt: "prompts/finance_script.md"
+  target_minutes: [9, 10]
+  rpm_note: "Finance RPM is high (~$5-10, premium niches $10+). Strong monetisation."
+
+# Proven title formulas (reverse-engineered from NexLev top performers)
+title_formulas:
+  - "What Actually Is {topic}? (Explained Like You're 5)"
+  - "If You Don't Understand {topic}, You Don't Understand Money"
+  - "How {everyday_thing} Explains {money_idea}"
+  - "Once You Learn This, {topic} Becomes Embarrassingly Simple"
+  - "Your Life at Every {ladder} — {low} to {high}"
+
+# Real high-performing reference titles (NexLev), for inspiration
+reference_hits:
+  - "The 2008 Financial Crisis Explained Like You're 5 — 2.2M"
+  - "If You Don't Understand Bonds, You Don't Understand Money — 1.8M"
+  - "How a Burger Explains Global Economics (Big Mac Index) — 27M"
+  - "Once You Learn Economics, You Can't Be Manipulated Anymore — 1.5M"
+  - "How Banks Treat You at Every Level of Wealth — $0 to $25M — 898K"
+  - "Why $2 Trillion Vanishes Every Year — 829K"
+
+# Starter topic ideas
+topic_ideas:
+  - "What actually is tax?"
+  - "What actually is inflation?"
+  - "How do banks make money?"
+  - "What actually is a recession?"
+  - "Why is gold worth anything?"
+  - "What actually is the stock market?"
+  - "How does government debt work?"
+  - "What actually is interest?"
