@@ -19,8 +19,8 @@ def test_rename_by_order(tmp_path):
     dst = tmp_path / "images"
     mapping = images.rename_by_order(str(src), segs, str(dst))
     assert set(mapping) == {"0:00", "0:05", "0:11"}
-    assert (dst / "0_00.png").exists()
-    assert (dst / "0_11.png").exists()
+    assert (dst / "000.png").exists()
+    assert (dst / "002.png").exists()
     assert images.missing(segs, str(dst)) == []
 
 
@@ -38,8 +38,8 @@ def test_rename_count_mismatch_raises(tmp_path):
 def test_missing_reports_gaps(tmp_path):
     segs = _segs()
     d = tmp_path / "images"; d.mkdir()
-    (d / "0_00.png").write_bytes(b"x")
-    assert images.missing(segs, str(d)) == ["0_05.png", "0_11.png"]
+    (d / "000.png").write_bytes(b"x")
+    assert images.missing(segs, str(d)) == ["001.png", "002.png"]
 
 
 def test_auto_manual_checkpoint(tmp_path):

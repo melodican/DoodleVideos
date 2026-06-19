@@ -32,8 +32,9 @@ class Segment:
 
     @property
     def filename(self) -> str:
-        """Image filename for this segment, named by its timestamp label."""
-        return self.label.replace(":", "_") + ".png"
+        """Image filename for this segment. Index-based so it is always unique
+        (real transcription timestamps can round to the same second)."""
+        return f"{self.index:03d}.png"
 
 
 def to_seconds(ts: str) -> float:

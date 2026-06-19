@@ -16,6 +16,23 @@ full autonomy.
 | 6 | Rename images by timestamp | — | ✅ `--images-in` maps a downloaded folder by order → `M_SS.png` |
 | 7 | **Edit images + VO on a timeline** | ~~CapCut (manual)~~ | ✅ **assembled with ffmpeg** — no manual editing |
 
+## Recommended workflow: bring-your-own script + VO (true sync)
+
+Each video lives in its own folder under `projects/`. Write the script (e.g. in
+n8n), generate the ElevenLabs voiceover, drop the audio in, and build:
+
+```bash
+mkdir -p projects/why-cities-never-sleep
+# put your ElevenLabs audio there as vo.mp3 (script.txt optional, for your records)
+python -m pipeline.doodle.run build projects/why-cities-never-sleep
+open projects/why-cities-never-sleep/video.mp4
+```
+
+`build` transcribes the VO with Whisper (real per-line timestamps), generates one
+doodle per line, and assembles a **frame-synced** 16:9 video — everything stays in
+that project folder. Needs `OPENAI_API_KEY` (transcription + images). No image key?
+It stops at the manual checkpoint; resume with `--images-in <folder>`.
+
 ## Usage
 
 ### Whole loop from a topic (steps 1→7)

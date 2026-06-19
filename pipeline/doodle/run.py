@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse, pathlib, sys
 from .timestamps import parse
 from .image_prompts import write_manifest, batch_prompt, per_segment_prompts
-from . import assemble, images, script_writer, voiceover
+from . import assemble, images, script_writer, voiceover, transcribe
 
 
 def _emit_prompts(segs, out: pathlib.Path):
@@ -39,8 +39,31 @@ def cmd_prompts(args):
 def cmd_assemble(args):
     segs = parse(pathlib.Path(args.transcript).read_text(encoding="utf-8"))
     out = assemble.render(segs, args.images, args.audio, out_path=args.out,
-                          audio_seconds=args.audio_seconds)
+                          audio_seconds=args.audio_seconds, sync=args.sync)
     print(f"rendered: {out}")
+
+
+def cmd_build(args):
+    """Project workflow: a folder with vo.mp3 -> transcribe -> images -> synced video."""
+    proj = pathlib.Path(args.project); proj.mkdir(parents=True, exist_ok=True)
+    vo = pathlib.Path(args.audio) if args.audio else None
+    if vo is None:
+        cands = (sorted(proj.glob("vo.*")) + sorted(proj.glob("*.mp3"))
+                 + sorted(proj.glob("*.wav")) + sorted(proj.glob("*.m4a")))
+        if not cands:
+            print(f"[!] no voiceover found in {proj} (expected vo.mp3)"); sys.exit(2)
+        vo = cands[0]
+    print(f"[1/4] transcribing {vo.name} for real timestamps...")
+    segs = transcribe.transcribe(str(vo))
+    (proj / "transcript.txt").write_text(transcribe.to_transcript_text(segs), encoding="utf-8")
+    _emit_prompts(segs, proj)
+    print(f"[2/4] {len(segs)} segments -> transcript + prompts")
+    images_dir = proj / "images"
+    print("[3/4] images:")
+    _fill_images(segs, proj, images_dir, args.images_in)
+    video = assemble.render(segs, str(images_dir), str(vo),
+                            out_path=str(proj / "video.mp4"), sync="timestamps")
+    print(f"[4/4] rendered: {video}")
 
 
 def cmd_script(args):
@@ -86,7 +109,7 @@ def cmd_auto(args):
     # Step 7: assemble (replaces manual CapCut edit)
     video = assemble.render(segs, str(images_dir), args.audio,
                             out_path=str(out / "video.mp4"),
-                            audio_seconds=args.audio_seconds)
+                            audio_seconds=args.audio_seconds, sync="proportional")
     print(f"[3/3] rendered: {video}")
 
 
@@ -152,7 +175,7 @@ def cmd_make(args):
               "then re-run (images are cached).")
         sys.exit(2)
     video = assemble.render(segs, str(out / "images"), audio,
-                            out_path=str(out / "video.mp4"))
+                            out_path=str(out / "video.mp4"), sync="proportional")
     print(f"[6/6] rendered: {video}")
 
 
@@ -184,7 +207,14 @@ def main():
     a.add_argument("images"); a.add_argument("audio")
     a.add_argument("--out", default="output/video.mp4")
     a.add_argument("--audio-seconds", type=float, default=None)
+    a.add_argument("--sync", choices=["timestamps", "proportional"], default="timestamps")
     a.set_defaults(func=cmd_assemble)
+
+    b = sub.add_parser("build", help="project folder w/ vo -> transcribe -> synced video")
+    b.add_argument("project")
+    b.add_argument("--audio", default=None, help="path to VO (default: vo.* in the project folder)")
+    b.add_argument("--images-in", default=None, help="folder of pre-made images (mapped by order)")
+    b.set_defaults(func=cmd_build)
 
     u = sub.add_parser("auto", help="one command: prompts -> images -> assemble")
     u.add_argument("transcript"); u.add_argument("audio")

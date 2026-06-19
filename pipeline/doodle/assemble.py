@@ -9,18 +9,24 @@ import pathlib, subprocess, shutil
 from .timestamps import Segment
 
 
-def compute_durations(segments: list[Segment], audio_seconds: float) -> list[tuple[str, float]]:
-    """Distribute the full audio across images in proportion to each segment's
-    word count.
+def compute_durations(segments: list[Segment], audio_seconds: float,
+                      sync: str = "timestamps") -> list[tuple[str, float]]:
+    """Return [(filename, seconds)] for each image.
 
-    The narration is read at a roughly uniform pace, so an image whose line has
-    twice the words should stay on screen about twice as long. This keeps frames
-    in sync with any voiceover of the same text (e.g. dropped-in ElevenLabs
-    audio) without needing exact per-word timestamps."""
-    weights = [max(1, len(s.text.split())) for s in segments]
-    total = sum(weights) or 1
-    return [(s.filename, max(0.3, round(audio_seconds * w / total, 3)))
-            for s, w in zip(segments, weights)]
+    sync="timestamps": use real per-segment start/end times (from transcription)
+        — each image holds from its spoken start to the next one's. True sync.
+    sync="proportional": distribute the audio by word count — a fallback for when
+        timestamps are only estimated (no transcription)."""
+    if sync == "proportional":
+        weights = [max(1, len(s.text.split())) for s in segments]
+        total = sum(weights) or 1
+        return [(s.filename, max(0.3, round(audio_seconds * w / total, 3)))
+                for s, w in zip(segments, weights)]
+    out = []
+    for s in segments:
+        end = s.end if s.end is not None else audio_seconds
+        out.append((s.filename, max(0.3, round(end - s.start, 3))))
+    return out
 
 
 def build_concat_file(durations: list[tuple[str, float]], images_dir: str) -> str:
@@ -53,12 +59,12 @@ def audio_duration(audio_path: str) -> float:
 
 def render(segments: list[Segment], images_dir: str, audio_path: str,
            out_path: str = "output/video.mp4", audio_seconds: float | None = None,
-           fps: int = 30) -> str:
+           fps: int = 30, sync: str = "timestamps") -> str:
     """Assemble images + VO into a 16:9 mp4. Requires ffmpeg on PATH."""
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg not found on PATH.")
     secs = audio_seconds if audio_seconds is not None else audio_duration(audio_path)
-    durations = compute_durations(segments, secs)
+    durations = compute_durations(segments, secs, sync=sync)
     concat_path = pathlib.Path(images_dir) / "_concat.txt"
     concat_path.write_text(build_concat_file(durations, images_dir))
     pathlib.Path(out_path).parent.mkdir(parents=True, exist_ok=True)
