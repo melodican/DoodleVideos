@@ -173,5 +173,7 @@ def video(name):
 
 
 if __name__ == "__main__":
-    print("Doodle Studio → http://localhost:5000")
-    app.run(host="127.0.0.1", port=5000)
+    import os
+    port = int(os.getenv("PORT", "8000"))  # 8000 default: avoids macOS AirPlay on 5000
+    print(f"Doodle Studio → http://localhost:{port}")
+    app.run(host="127.0.0.1", port=port)
