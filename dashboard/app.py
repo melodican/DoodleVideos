@@ -22,83 +22,118 @@ def _slug(s: str) -> str:
 
 
 PAGE = """
-<!doctype html><html><head><meta charset="utf-8"><title>Doodle Studio</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Doodle Studio</title>
 <style>
- body{font:16px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;max-width:720px;margin:40px auto;padding:0 16px;color:#1a1a1a}
- h1{font-size:24px} label{display:block;font-weight:600;margin:18px 0 6px}
- input[type=text],textarea{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;font:inherit;box-sizing:border-box}
- textarea{height:120px} input[type=file]{margin-top:6px}
- button{margin-top:22px;background:#111;color:#fff;border:0;border-radius:10px;padding:12px 22px;font:inherit;font-weight:600;cursor:pointer}
- button:disabled{opacity:.5;cursor:default}
- #status{margin-top:22px;padding:14px;border-radius:10px;background:#f4f4f5;display:none}
- .bar{height:8px;background:#e5e7eb;border-radius:6px;overflow:hidden;margin-top:8px}
- .bar>div{height:100%;width:0;background:#111;transition:width .3s}
- video{width:100%;margin-top:16px;border-radius:10px}
- a.dl{display:inline-block;margin-top:12px}
- small{color:#666}
-</style></head><body>
+ :root{--bg:#0e0e12;--card:#17171d;--line:#2a2a33;--txt:#e9e9ee;--mut:#9a9aa6;
+       --accent:#7c5cff;--accent2:#f5c542;--ok:#34d399}
+ *{box-sizing:border-box}
+ body{font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      background:var(--bg);color:var(--txt);margin:0;padding:44px 16px}
+ .wrap{max-width:680px;margin:0 auto}
+ h1{font-size:26px;margin:0 0 4px} .sub{color:var(--mut);margin:0 0 24px}
+ .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
+ label{display:block;font-weight:600;margin:18px 0 6px;font-size:14px}
+ form>label:first-child{margin-top:0}
+ input[type=text],textarea{width:100%;padding:11px 12px;background:#0f0f14;
+      border:1px solid var(--line);border-radius:10px;color:var(--txt);font:inherit}
+ input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+ textarea{height:140px;resize:vertical}
+ input[type=file]{color:var(--mut);font-size:14px}
+ input[type=file]::file-selector-button{background:#26262f;color:var(--txt);border:1px solid var(--line);
+      border-radius:8px;padding:8px 12px;margin-right:10px;cursor:pointer}
+ .row{display:flex;gap:8px}
+ button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:12px 20px;
+      font:inherit;font-weight:700;cursor:pointer;transition:opacity .2s} button:hover{opacity:.9}
+ button:disabled{opacity:.45;cursor:default}
+ #gen{background:#26262f;border:1px solid var(--line);white-space:nowrap}
+ .primary{width:100%;margin-top:24px;padding:14px;font-size:16px}
+ .titles{color:var(--mut);font-size:13px;white-space:pre-wrap;margin-top:8px}
+ #status{margin-top:22px;display:none}
+ .stat{display:flex;align-items:center;gap:12px}
+ .spin{width:20px;height:20px;border:3px solid var(--line);border-top-color:var(--accent);
+      border-radius:50%;animation:sp 1s linear infinite;flex:0 0 auto}
+ @keyframes sp{to{transform:rotate(360deg)}}
+ .stage{font-weight:700} .detail{color:var(--mut);font-size:14px;margin-top:2px}
+ .bar{height:8px;background:#0f0f14;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:14px}
+ .bar>div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s}
+ video{width:100%;margin-top:18px;border-radius:12px;border:1px solid var(--line)}
+ .done{margin-top:16px;padding:16px;background:#0f1a14;border:1px solid #1f5c43;border-radius:12px}
+ .dl{display:inline-block;background:var(--ok);color:#04140d;font-weight:700;text-decoration:none;
+      padding:11px 18px;border-radius:10px}
+ .path{color:var(--mut);font-size:13px;margin-top:10px;word-break:break-all}
+ .err{color:#fca5a5}
+</style></head><body><div class="wrap">
 <h1>🎬 Doodle Studio</h1>
-<p><small>Upload your ElevenLabs voiceover. The script box is optional — timing comes from the audio.</small></p>
+<p class="sub">Write a script with Claude, drop in your ElevenLabs voiceover, get a synced doodle video.</p>
+<div class="card">
 <form id="f">
   <label>Project name</label>
   <input type="text" name="name" placeholder="why-cities-never-sleep" required>
+  <label>Script <span style="color:var(--mut);font-weight:400">(optional — timing comes from the audio)</span></label>
+  <div class="row">
+    <input type="text" id="topic" placeholder="Topic, e.g. What actually is tax?">
+    <button type="button" id="gen">✨ Write with Claude</button>
+  </div>
+  <textarea name="script" id="script" placeholder="Paste a script, or generate one above. Copy it into ElevenLabs to make your voiceover."></textarea>
+  <div class="titles" id="titles"></div>
   <label>Voiceover (mp3 / m4a / wav)</label>
   <input type="file" name="audio" accept="audio/*" required>
-  <label>Script <small>(optional — timing comes from the audio)</small></label>
-  <div style="display:flex;gap:8px;align-items:center">
-    <input type="text" id="topic" placeholder="Topic, e.g. What actually is tax?">
-    <button type="button" id="gen" style="margin:0;white-space:nowrap">✨ Write with Claude</button>
-  </div>
-  <textarea name="script" id="script" placeholder="Paste a script, or generate one above. (Copy it into ElevenLabs to make your voiceover.)"></textarea>
-  <div id="titles"><small></small></div>
-  <button type="submit">Generate Video</button>
+  <button type="submit" class="primary">Generate Video</button>
 </form>
-<div id="status"><b id="stage">Starting…</b><div class="bar"><div id="fill"></div></div>
-  <div id="detail"><small></small></div><div id="result"></div></div>
+<div id="status">
+  <div class="stat"><div class="spin" id="spin"></div>
+    <div><div class="stage" id="stage">Starting…</div><div class="detail" id="detail"></div></div></div>
+  <div class="bar"><div id="fill"></div></div>
+  <div id="result"></div>
+</div>
+</div></div>
 <script>
 const gen=document.getElementById('gen'), topic=document.getElementById('topic'),
-      scriptBox=document.getElementById('script'), titles=document.querySelector('#titles small');
+      scriptBox=document.getElementById('script'), titles=document.getElementById('titles');
 gen.onclick=async()=>{
   if(!topic.value.trim()){topic.focus();return;}
-  gen.disabled=true; const old=gen.textContent; gen.textContent='Writing… (~30s)';
-  titles.textContent='';
+  gen.disabled=true; const old=gen.textContent; gen.textContent='Writing… (~30s)'; titles.textContent='';
   try{
     const r=await fetch('/script',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({topic:topic.value.trim()})});
     const j=await r.json();
-    if(j.error){titles.textContent='Error: '+j.error;}
-    else{scriptBox.value=j.script; if(j.extras) titles.textContent=j.extras;}
-  }catch(e){titles.textContent='Error: '+e;}
+    if(j.error){titles.innerHTML='<span class="err">Error: '+j.error+'</span>';}
+    else{scriptBox.value=j.script; titles.textContent=j.extras||'';}
+  }catch(e){titles.innerHTML='<span class="err">Error: '+e+'</span>';}
   gen.disabled=false; gen.textContent=old;
 };
 const f=document.getElementById('f'), s=document.getElementById('status'),
       stage=document.getElementById('stage'), fill=document.getElementById('fill'),
-      detail=document.querySelector('#detail small'), result=document.getElementById('result'),
-      btn=f.querySelector('button');
+      detail=document.getElementById('detail'), result=document.getElementById('result'),
+      spin=document.getElementById('spin'), btn=f.querySelector('.primary');
 f.onsubmit=async e=>{
   e.preventDefault(); btn.disabled=true; s.style.display='block'; result.innerHTML='';
-  stage.textContent='Uploading…'; fill.style.width='5%';
+  spin.style.display='block'; stage.textContent='Uploading…'; detail.textContent=''; fill.style.width='5%';
   const r=await fetch('/build',{method:'POST',body:new FormData(f)});
   const j=await r.json();
-  if(j.error){stage.textContent='Error'; detail.textContent=j.error; btn.disabled=false; return;}
+  if(j.error){spin.style.display='none'; stage.textContent='Error';
+    detail.innerHTML='<span class="err">'+j.error+'</span>'; btn.disabled=false; return;}
   poll(j.job);
 };
 function poll(job){
+  const names={transcribe:'Transcribing voiceover',segments:'Planning scenes',images:'Drawing doodles',
+               assemble:'Assembling video',done:'Done',queued:'Queued'};
   const t=setInterval(async()=>{
     const j=await (await fetch('/status/'+job)).json();
-    stage.textContent=({transcribe:'Transcribing',segments:'Planning',images:'Drawing',assemble:'Assembling',done:'Done ✅',queued:'Queued'}[j.stage]||j.stage);
-    detail.textContent=j.detail||'';
+    stage.textContent=names[j.stage]||j.stage; detail.textContent=j.detail||'';
     let m=(j.detail||'').match(/(\\d+)\\/(\\d+)/);
     if(j.stage==='images'&&m){fill.style.width=(10+80*m[1]/m[2])+'%';}
     else if(j.stage==='transcribe'){fill.style.width='8%';}
     else if(j.stage==='segments'){fill.style.width='10%';}
     else if(j.stage==='assemble'){fill.style.width='92%';}
     if(j.done){
-      clearInterval(t); btn.disabled=false;
-      if(j.error){stage.textContent='Error'; detail.textContent=j.error;}
-      else{fill.style.width='100%';
+      clearInterval(t); btn.disabled=false; spin.style.display='none';
+      if(j.error){stage.textContent='Error'; detail.innerHTML='<span class="err">'+j.error+'</span>';}
+      else{fill.style.width='100%'; stage.textContent='Done ✅'; detail.textContent='';
         result.innerHTML='<video controls src="/video/'+j.project+'?v='+Date.now()+'"></video>'+
-          '<a class="dl" href="/video/'+j.project+'?dl=1">⬇ Download MP4</a>';}
+          '<div class="done"><a class="dl" href="/video/'+j.project+'?dl=1">⬇ Download MP4 for YouTube</a>'+
+          (j.video_path?'<div class="path">Saved at: '+j.video_path+'</div>':'')+'</div>';}
     }
   },1500);
 }
@@ -135,7 +170,8 @@ def build():
             JOBS[job]["detail"] = detail
         try:
             build_project(str(proj), audio_path=str(vo), progress=pr)
-            JOBS[job].update(stage="done", done=True)
+            JOBS[job].update(stage="done", done=True,
+                             video_path=str((proj / "video.mp4").resolve()))
         except NeedImages:
             JOBS[job].update(done=True, error="No OPENAI_API_KEY set — can't generate images.")
         except Exception as e:  # noqa: BLE001 - surface any failure to the UI
