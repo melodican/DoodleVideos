@@ -9,32 +9,28 @@ style:
   reference_image: ""          # optional: path to a locked style reference
 
   block: |
-    STYLE REQUIREMENTS:
-    The image style must look like extremely simple beginner drawings made in MS Paint.
-    It should look like someone who is not good at drawing created it quickly by hand.
-    Use a very simple stickman / childish drawing style:
+    STYLE: a simple, charming hand-drawn doodle — like a clever person sketching
+    fast with a black marker plus a few colored markers. Amateur and playful, NOT
+    polished or professional.
     - White background
-    - Thick, uneven black outlines
-    - Wobbly hand-drawn lines
-    - Stick figure humans with round heads and line bodies
-    - Simple dot eyes or circle eyes
-    - Very basic facial expressions
-    - Flat colors only
-    - No realistic shading, 3D, cinematic lighting, cartoon/Disney/anime style,
-      polished illustration, professional vector art, detailed backgrounds,
-      complex textures, realistic humans, or glossy/modern design.
-    The drawings should feel amateur, funny, simple, and intentionally "bad."
-    Objects use basic shapes: squares, circles, rectangles, arrows, tables, boxes,
-    trees, rooms, signs, screens, stickmen, question marks, simple symbols.
-    Occasional flat colors: green, brown, gray, red, yellow, orange, blue.
-    Red arrows or red question marks when needed.
-    Handwritten text only when it helps; if text appears it must be spelled
-    correctly, short, and easy to read.
+    - Thick, slightly wobbly black outlines
+    - Stick-figure people with round heads, dot eyes, simple expressive faces
+    - Simple shapes: boxes, circles, arrows, simple buildings, props
+    COLOR (important): always add flat colour. Fill the main objects with a few
+    bold flat colours (red, blue, green, yellow, orange, brown). Every image must
+    have several clearly coloured elements — do NOT leave it mostly black & white.
+    No shading, gradients, 3D, or realistic lighting; flat fills only.
+    DETAIL: keep it simple but give each frame a little personality and interest —
+    an expressive face, one or two relevant props, a small background touch — so it
+    is engaging, not empty. Still clearly a quick hand-drawn doodle.
+    NO ON-SCREEN TEXT (important): do NOT write the narration on screen. No
+    sentences, no captions, no paragraphs of what is being said. Tell the story
+    with pictures only. At most an occasional ONE- or TWO-word label on an object
+    when truly necessary, spelled correctly — otherwise no text at all.
+    AVOID: anime, Disney, cartoon-network style, vector art, polished illustration,
+    realism, photoreal, 3D, complex textures.
     FORMAT: horizontal 16:9 wide YouTube frame (not vertical, not square).
-    SAFE AREA: keep ALL text and important objects within the central horizontal
-    band. Leave large EMPTY white margins at the very top and very bottom (roughly
-    the top 15% and bottom 15% of the image must be blank white space), because
-    those edges are trimmed to fit 16:9. Put nothing important near the top or
-    bottom edge.
-    Clear, readable, centered. Avoid glitches, broken anatomy, unreadable text,
-    messy overlaps. Do not make the drawings look too good, polished, or professional.
+    SAFE AREA: keep all content in the central band with large EMPTY white margins
+    at the very top and very bottom (top ~15% and bottom ~15% blank), because those
+    edges are cropped. Nothing important near the top or bottom edge. Centered,
+    clear, no messy overlaps.

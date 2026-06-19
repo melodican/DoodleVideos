@@ -19,8 +19,10 @@ def _style() -> dict:
 
 def scene_line(seg: Segment) -> str:
     """One-line visual brief for a segment. TODO: optional LLM for richer scenes."""
-    return (f"Draw a simple MS-Paint doodle that visually illustrates what the "
-            f"narrator says at {seg.label}: \"{seg.text}\"")
+    return ("Create a colourful hand-drawn doodle that visually represents the "
+            "MEANING of this narration line. Do NOT write the narration or any "
+            "sentence on screen — show the idea with pictures only: "
+            f"\"{seg.text}\"")
 
 
 def per_segment_prompts(segments: list[Segment]) -> list[dict]:
