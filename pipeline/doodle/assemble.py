@@ -21,16 +21,20 @@ def compute_durations(segments: list[Segment], audio_seconds: float) -> list[tup
 
 
 def build_concat_file(durations: list[tuple[str, float]], images_dir: str) -> str:
-    """Build ffmpeg concat-demuxer text. Each image needs a trailing repeat line."""
+    """Build ffmpeg concat-demuxer text. Each image needs a trailing repeat line.
+
+    Uses absolute paths because ffmpeg's concat demuxer resolves relative entries
+    against the script file's own directory, which would double the path.
+    """
     d = pathlib.Path(images_dir)
     lines = []
     for fname, dur in durations:
-        p = (d / fname).as_posix()
+        p = (d / fname).resolve().as_posix()
         lines.append(f"file '{p}'")
         lines.append(f"duration {dur}")
     # concat demuxer quirk: repeat the last file with no duration
     if durations:
-        lines.append(f"file '{(d / durations[-1][0]).as_posix()}'")
+        lines.append(f"file '{(d / durations[-1][0]).resolve().as_posix()}'")
     return "\n".join(lines) + "\n"
 
 
