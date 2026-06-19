@@ -4,7 +4,7 @@ Run:  python -m dashboard.app   then open http://localhost:5000
 Needs OPENAI_API_KEY in the environment (transcription + images).
 """
 from __future__ import annotations
-import threading, uuid, re, pathlib
+import os, threading, uuid, re, pathlib
 from flask import Flask, request, jsonify, render_template_string, send_file, abort
 
 from pipeline.doodle.builder import build_project, NeedImages
@@ -63,6 +63,7 @@ PAGE = """
       padding:11px 18px;border-radius:10px}
  .path{color:var(--mut);font-size:13px;margin-top:10px;word-break:break-all}
  .err{color:#fca5a5}
+ .est{color:var(--accent2);font-size:13px;margin-top:12px}
 </style></head><body><div class="wrap">
 <h1>🎬 Doodle Studio</h1>
 <p class="sub">Write a script with Claude, drop in your ElevenLabs voiceover, get a synced doodle video.</p>
@@ -79,6 +80,7 @@ PAGE = """
   <div class="titles" id="titles"></div>
   <label>Voiceover (mp3 / m4a / wav)</label>
   <input type="file" name="audio" accept="audio/*" required>
+  <div class="est" id="est"></div>
   <button type="submit" class="primary">Generate Video</button>
 </form>
 <div id="status">
@@ -137,6 +139,25 @@ function poll(job){
     }
   },1500);
 }
+// --- live cost estimate (no API call; reads audio length in the browser) ---
+let CFG={seconds_per_image:8,quality:'low'}, audioDur=0;
+const PRICE={low:0.02,medium:0.06,high:0.19};
+const est=document.getElementById('est'), audioInput=document.querySelector('input[name=audio]');
+fetch('/config').then(r=>r.json()).then(c=>{CFG=c; recalc();}).catch(()=>{});
+audioInput.onchange=()=>{
+  const file=audioInput.files[0]; if(!file){audioDur=0; est.textContent=''; return;}
+  const a=document.createElement('audio'); a.preload='metadata';
+  a.onloadedmetadata=()=>{audioDur=a.duration||0; recalc(); URL.revokeObjectURL(a.src);};
+  a.src=URL.createObjectURL(file);
+};
+function recalc(){
+  if(!audioDur){est.textContent=''; return;}
+  const n=Math.max(1,Math.ceil(audioDur/(CFG.seconds_per_image||8)));
+  const cost=n*(PRICE[CFG.quality]||PRICE.low);
+  const mins=(audioDur/60).toFixed(1);
+  est.textContent='Estimate: ~'+n+' images for a '+mins+' min video ≈ $'+cost.toFixed(2)+
+    ' at '+CFG.quality+' quality (+~$0.01 transcription)';
+}
 </script></body></html>
 """
 
@@ -192,6 +213,12 @@ def script():
         return jsonify(result)
     except Exception as e:  # noqa: BLE001
         return jsonify(error=str(e)), 500
+
+
+@app.route("/config")
+def config():
+    return jsonify(seconds_per_image=float(os.getenv("SECONDS_PER_IMAGE", "8")),
+                   quality=os.getenv("IMAGE_QUALITY", "low"))
 
 
 @app.route("/status/<job>")
