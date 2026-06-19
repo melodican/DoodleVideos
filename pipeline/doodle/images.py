@@ -59,7 +59,7 @@ def missing(segments: list[Segment], images_dir: str) -> list[str]:
     return [s.filename for s in segments if not (d / s.filename).exists()]
 
 
-def generate(per_segment_prompts: list[dict], out_dir: str) -> list[str]:
+def generate(per_segment_prompts: list[dict], out_dir: str, on_progress=None) -> list[str]:
     """Generate one image per prompt via the OpenAI Images API (GPT-Image). Saves
     by the manifest filename. Honors IMAGE_GEN_MODEL / IMAGE_QUALITY / IMAGE_SIZE
     and falls back to gpt-image-1 if the configured model id is rejected. Raises
@@ -84,7 +84,8 @@ def generate(per_segment_prompts: list[dict], out_dir: str) -> list[str]:
         )
 
     made = []
-    for item in per_segment_prompts:
+    total = len(per_segment_prompts)
+    for idx, item in enumerate(per_segment_prompts, 1):
         resp = _one(item["prompt"], model)
         # graceful fallback if the configured model id isn't valid on this account
         if resp.status_code in (400, 404) and model != "gpt-image-1" \
@@ -95,4 +96,6 @@ def generate(per_segment_prompts: list[dict], out_dir: str) -> list[str]:
         target = out / item["filename"]
         target.write_bytes(base64.b64decode(b64))
         made.append(str(target))
+        if on_progress:
+            on_progress(idx, total)
     return made

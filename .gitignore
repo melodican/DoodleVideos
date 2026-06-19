@@ -10,3 +10,7 @@ __pycache__/
 
 # runtime state
 /state/*.json
+
+# local backups & generated work
+*.bundle
+/projects/

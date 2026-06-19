@@ -45,25 +45,21 @@ def cmd_assemble(args):
 
 def cmd_build(args):
     """Project workflow: a folder with vo.mp3 -> transcribe -> images -> synced video."""
-    proj = pathlib.Path(args.project); proj.mkdir(parents=True, exist_ok=True)
-    vo = pathlib.Path(args.audio) if args.audio else None
-    if vo is None:
-        cands = (sorted(proj.glob("vo.*")) + sorted(proj.glob("*.mp3"))
-                 + sorted(proj.glob("*.wav")) + sorted(proj.glob("*.m4a")))
-        if not cands:
-            print(f"[!] no voiceover found in {proj} (expected vo.mp3)"); sys.exit(2)
-        vo = cands[0]
-    print(f"[1/4] transcribing {vo.name} for real timestamps...")
-    segs = transcribe.transcribe(str(vo))
-    (proj / "transcript.txt").write_text(transcribe.to_transcript_text(segs), encoding="utf-8")
-    _emit_prompts(segs, proj)
-    print(f"[2/4] {len(segs)} segments -> transcript + prompts")
-    images_dir = proj / "images"
-    print("[3/4] images:")
-    _fill_images(segs, proj, images_dir, args.images_in)
-    video = assemble.render(segs, str(images_dir), str(vo),
-                            out_path=str(proj / "video.mp4"), sync="timestamps")
-    print(f"[4/4] rendered: {video}")
+    from .builder import build_project, NeedImages
+    try:
+        video = build_project(args.project, audio_path=args.audio,
+                              images_in=args.images_in,
+                              progress=lambda stage, detail="": print(f"[{stage}] {detail}"))
+        print(f"rendered: {video}")
+    except NeedImages:
+        proj = pathlib.Path(args.project)
+        print("[!] no image API key — MANUAL CHECKPOINT:")
+        print(f"      1) paste {proj/'batch_prompt.txt'} into Higgsfield/GPT-Image-2")
+        print(f"      2) download the images into a folder")
+        print(f"      3) re-run with:  --images-in <that_folder>")
+        sys.exit(2)
+    except (FileNotFoundError, RuntimeError) as e:
+        print(f"[!] {e}"); sys.exit(2)
 
 
 def cmd_script(args):

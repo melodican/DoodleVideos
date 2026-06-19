@@ -10,3 +10,4 @@ google-auth-oauthlib>=1.2
 # TTS / media (placeholders — swap for chosen providers)
 # elevenlabs, pillow, etc.
 pillow>=10.0
+flask>=3.0
