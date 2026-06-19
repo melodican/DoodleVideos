@@ -9,28 +9,26 @@ style:
   reference_image: ""          # optional: path to a locked style reference
 
   block: |
-    STYLE: a simple, charming hand-drawn doodle — like a clever person sketching
-    fast with a black marker plus a few colored markers. Amateur and playful, NOT
-    polished or professional.
-    - White background
-    - Thick, slightly wobbly black outlines
-    - Stick-figure people with round heads, dot eyes, simple expressive faces
-    - Simple shapes: boxes, circles, arrows, simple buildings, props
-    COLOR (important): always add flat colour. Fill the main objects with a few
-    bold flat colours (red, blue, green, yellow, orange, brown). Every image must
-    have several clearly coloured elements — do NOT leave it mostly black & white.
-    No shading, gradients, 3D, or realistic lighting; flat fills only.
-    DETAIL: keep it simple but give each frame a little personality and interest —
-    an expressive face, one or two relevant props, a small background touch — so it
-    is engaging, not empty. Still clearly a quick hand-drawn doodle.
-    NO ON-SCREEN TEXT (important): do NOT write the narration on screen. No
-    sentences, no captions, no paragraphs of what is being said. Tell the story
-    with pictures only. At most an occasional ONE- or TWO-word label on an object
-    when truly necessary, spelled correctly — otherwise no text at all.
-    AVOID: anime, Disney, cartoon-network style, vector art, polished illustration,
-    realism, photoreal, 3D, complex textures.
+    STYLE: a simple, charming hand-drawn doodle — black marker linework, like a
+    clever person sketching ONE quick idea. Amateur and playful, NOT polished.
+    ONE IDEA PER FRAME (most important rule): each image shows a SINGLE clear
+    subject or visual metaphor — one object, one stick figure, OR one symbol —
+    big and centered, surrounded by lots of empty white space. Do NOT crowd the
+    frame with multiple characters or many objects. If the narration mentions
+    several things, draw only the SINGLE most important idea. Think road signs:
+    instantly readable in one glance. Minimal and uncluttered.
+    - White background, thick slightly wobbly black outlines
+    - Stick-figure people with round heads, dot eyes, simple faces
+    - Simple shapes: one object, an arrow, a box, a symbol
+    COLOUR: flat fills only (no shading, gradients, 3D, lighting). Use colour where
+    it makes the single subject pop (e.g. an orange sunset, a purple chair); clean
+    black line-art on white is also great. Avoid muddy grey frames.
+    NO ON-SCREEN TEXT: do NOT write the narration. No sentences, no captions. At
+    most ONE bold short label of 1-3 words, spelled correctly, when it genuinely
+    helps (e.g. "HUMAN HISTORY"). Otherwise no text.
+    AVOID: busy collages, crowds of characters, many objects crammed together,
+    anime, Disney, vector art, polished illustration, realism, 3D, textures.
     FORMAT: horizontal 16:9 wide YouTube frame (not vertical, not square).
-    SAFE AREA: keep all content in the central band with large EMPTY white margins
-    at the very top and very bottom (top ~15% and bottom ~15% blank), because those
-    edges are cropped. Nothing important near the top or bottom edge. Centered,
-    clear, no messy overlaps.
+    SAFE AREA: keep the single subject centered with large EMPTY white margins at
+    the very top and very bottom (top ~15% and bottom ~15% blank) — edges are
+    cropped. Nothing important near the top or bottom edge.
