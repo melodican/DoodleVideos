@@ -31,6 +31,10 @@ style:
     Handwritten text only when it helps; if text appears it must be spelled
     correctly, short, and easy to read.
     FORMAT: horizontal 16:9 wide YouTube frame (not vertical, not square).
-    Clear, readable, centered. Do not crop important objects. Leave space around
-    characters. Avoid glitches, broken anatomy, unreadable text, messy overlaps.
-    Do not make the drawings look too good, polished, or professional.
+    SAFE AREA: keep ALL text and important objects within the central horizontal
+    band. Leave large EMPTY white margins at the very top and very bottom (roughly
+    the top 15% and bottom 15% of the image must be blank white space), because
+    those edges are trimmed to fit 16:9. Put nothing important near the top or
+    bottom edge.
+    Clear, readable, centered. Avoid glitches, broken anatomy, unreadable text,
+    messy overlaps. Do not make the drawings look too good, polished, or professional.

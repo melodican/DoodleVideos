@@ -66,8 +66,8 @@ def render(segments: list[Segment], images_dir: str, audio_path: str,
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0", "-i", str(concat_path),
         "-i", audio_path,
-        "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,"
-               "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=white,format=yuv420p",
+        "-vf", "scale=1920:1080:force_original_aspect_ratio=increase,"
+               "crop=1920:1080,format=yuv420p",
         "-r", str(fps), "-c:v", "libx264", "-c:a", "aac",
         "-shortest", out_path,
     ]
