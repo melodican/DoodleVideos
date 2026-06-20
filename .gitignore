@@ -14,3 +14,7 @@ __pycache__/
 # local backups & generated work
 *.bundle
 /projects/
+
+# YouTube OAuth secrets — never commit these
+client_secret.json
+yt_token.json

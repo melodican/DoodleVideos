@@ -4,11 +4,11 @@ Run:  python -m dashboard.app   then open http://localhost:5000
 Needs OPENAI_API_KEY in the environment (transcription + images).
 """
 from __future__ import annotations
-import os, threading, uuid, re, pathlib
+import os, json, threading, uuid, re, pathlib
 from flask import Flask, request, jsonify, render_template_string, send_file, abort
 
 from pipeline.doodle.builder import build_project, NeedImages
-from pipeline.doodle import script_writer
+from pipeline.doodle import script_writer, youtube_upload
 
 ROOT = pathlib.Path(__file__).parent.parent
 PROJECTS = ROOT / "projects"
@@ -19,6 +19,20 @@ JOBS: dict[str, dict] = {}
 def _slug(s: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")
     return s or "video"
+
+
+def _read_meta(d: pathlib.Path) -> dict:
+    p = d / "metadata.json"
+    if p.exists():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 - tolerate a hand-edited file
+            pass
+    return {}
+
+
+def _write_meta(d: pathlib.Path, meta: dict) -> None:
+    (d / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
 
 PAGE = """
@@ -219,6 +233,82 @@ async function loadProjects(active){
 }
 newBtn.onclick=()=>{detailView.style.display='none'; builderView.style.display='block';
   [...plist.children].forEach(c=>c.classList&&c.classList.remove('active'));};
+function ta(id,val,h){return '<textarea id="'+id+'" style="height:'+h+'px">'+esc(val)+'</textarea>';}
+function publishCard(name,p){
+  let pub = p.yt_url ? '<div class="done" style="margin-bottom:14px">▶ Published: '+
+      '<a class="dl" style="background:#26262f;color:var(--txt)" href="'+esc(p.yt_url)+
+      '" target="_blank">'+esc(p.yt_url)+'</a></div>' : '';
+  let setup = p.yt_ready ? '' :
+    '<div class="titles">First time: add <code>client_secret.json</code> to the repo '+
+    'root — see <code>docs/youtube-setup.md</code>. The first publish opens a browser '+
+    'to authorize.</div>';
+  return '<div class="card" style="margin-top:24px"><h1 style="font-size:20px">Publish to YouTube</h1>'+
+    pub+setup+
+    '<label>Title</label><input type="text" id="ytTitle" value="'+esc(p.yt_title)+'">'+
+    '<label>Description</label>'+ta('ytDesc',p.yt_description,160)+
+    '<label>Tags <span style="color:var(--mut);font-weight:400">(comma separated)</span></label>'+
+    '<input type="text" id="ytTags" value="'+esc(p.yt_tags)+'">'+
+    '<label>Privacy</label>'+
+    '<select id="ytPriv" style="width:100%;padding:11px 12px;background:#0f0f14;border:1px solid var(--line);border-radius:10px;color:var(--txt);font:inherit">'+
+      ['unlisted','private','public'].map(o=>'<option value="'+o+'"'+
+        (o===(p.privacy||'unlisted')?' selected':'')+'>'+o+'</option>').join('')+'</select>'+
+    '<div class="row" style="margin-top:18px">'+
+      '<button type="button" id="ytGen" style="background:#26262f;border:1px solid var(--line)">✨ Generate with Claude</button>'+
+      '<button type="button" id="ytPub" class="primary" style="margin-top:0;flex:1">🚀 Publish to YouTube</button>'+
+    '</div>'+
+    '<div id="ytStatus" style="display:none;margin-top:14px"><div class="stat">'+
+      '<div class="spin" id="ytSpin"></div><div><div class="stage" id="ytStage"></div>'+
+      '<div class="detail" id="ytDetail"></div></div></div></div>';
+}
+function wirePublish(name,p){
+  const gen=document.getElementById('ytGen'), pub=document.getElementById('ytPub'),
+        st=document.getElementById('ytStatus'), stage=document.getElementById('ytStage'),
+        det=document.getElementById('ytDetail'), spin=document.getElementById('ytSpin');
+  if(!pub) return;
+  const fields=()=>({title:document.getElementById('ytTitle').value,
+    description:document.getElementById('ytDesc').value,
+    tags:document.getElementById('ytTags').value,
+    privacy:document.getElementById('ytPriv').value});
+  gen.onclick=async()=>{
+    gen.disabled=true; const o=gen.textContent; gen.textContent='Generating… (~30s)';
+    try{
+      const r=await fetch('/metadata',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({topic:p.yt_title||p.title, script:p.script||''})});
+      const j=await r.json();
+      if(!j.error){
+        if(j.title)document.getElementById('ytTitle').value=j.title;
+        if(j.description)document.getElementById('ytDesc').value=j.description;
+        if(j.tags)document.getElementById('ytTags').value=j.tags;
+        fetch('/save_meta/'+name,{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(fields())});
+      }
+    }catch(e){}
+    gen.disabled=false; gen.textContent=o;
+  };
+  pub.onclick=async()=>{
+    pub.disabled=true; gen.disabled=true; st.style.display='block'; spin.style.display='block';
+    stage.textContent='Starting…'; det.textContent='';
+    await fetch('/save_meta/'+name,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(fields())});
+    let j; try{ j=await (await fetch('/publish/'+name,{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(fields())})).json(); }
+    catch(e){ j={error:''+e}; }
+    if(j.error){stage.textContent='Error'; spin.style.display='none';
+      det.innerHTML='<span class="err">'+esc(j.error)+'</span>'; pub.disabled=false; gen.disabled=false; return;}
+    const names={auth:'Authorizing with YouTube',uploading:'Uploading to YouTube'};
+    const t=setInterval(async()=>{
+      const s=await (await fetch('/status/'+j.job)).json();
+      stage.textContent=names[s.stage]||s.stage; det.textContent=s.detail||'';
+      if(s.stage==='auth'){det.textContent='A browser window may open for you to approve access.';}
+      if(s.done){
+        clearInterval(t); spin.style.display='none'; pub.disabled=false; gen.disabled=false;
+        if(s.error){stage.textContent='Error'; det.innerHTML='<span class="err">'+esc(s.error)+'</span>';}
+        else{stage.textContent='Published ✅';
+          det.innerHTML='<a class="dl" href="'+esc(s.url)+'" target="_blank">▶ '+esc(s.url)+'</a>';}
+      }
+    },1500);
+  };
+}
 async function openProject(name){
   builderView.style.display='none'; detailView.style.display='block';
   detailView.innerHTML='<p class="sub">Loading…</p>'; loadProjects(name);
@@ -234,7 +324,9 @@ async function openProject(name){
   h+='<div class="path" style="margin-top:14px">'+(p.image_count||0)+' images generated</div>';
   if(p.script){h+=field('Script',p.script,180);}
   if(p.transcript){h+=field('Transcript (timed)',p.transcript,160);}
+  if(p.has_video){h+=publishCard(name,p);}
   detailView.innerHTML=h;
+  if(p.has_video){wirePublish(name,p);}
 }
 loadProjects();
 </script></body></html>
@@ -307,6 +399,64 @@ def metadata():
         return jsonify(error=str(e)), 500
 
 
+@app.route("/save_meta/<name>", methods=["POST"])
+def save_meta(name):
+    d = PROJECTS / _slug(name)
+    if not d.is_dir():
+        return jsonify(error="Project not found"), 404
+    data = request.get_json(silent=True) or {}
+    meta = _read_meta(d)
+    for k in ("title", "description", "tags", "privacy"):
+        if k in data:
+            meta[k] = (data.get(k) or "").strip() if isinstance(data.get(k), str) else data.get(k)
+    _write_meta(d, meta)
+    return jsonify(ok=True)
+
+
+@app.route("/publish/<name>", methods=["POST"])
+def publish(name):
+    d = PROJECTS / _slug(name)
+    if not d.is_dir():
+        return jsonify(error="Project not found"), 404
+    video = d / "video.mp4"
+    if not video.exists():
+        return jsonify(error="No rendered video to publish yet."), 400
+    if not youtube_upload.configured():
+        return jsonify(error="YouTube isn’t set up yet — add client_secret.json "
+                             "(see docs/youtube-setup.md), then try again."), 400
+
+    data = request.get_json(silent=True) or {}
+    meta = _read_meta(d)
+    title = (data.get("title") or meta.get("title") or d.name).strip()
+    description = (data.get("description") or meta.get("description") or "").strip()
+    tags = data.get("tags", meta.get("tags", ""))
+    privacy = (data.get("privacy") or meta.get("privacy") or "unlisted").strip()
+    meta.update(title=title, description=description, tags=tags, privacy=privacy)
+    _write_meta(d, meta)
+
+    job = uuid.uuid4().hex[:8]
+    JOBS[job] = {"stage": "auth", "detail": "Checking YouTube authorization…",
+                 "done": False, "error": None, "project": d.name}
+
+    def run():
+        def pr(pct):
+            JOBS[job].update(stage="uploading", detail=f"Uploading… {pct}%")
+        try:
+            res = youtube_upload.upload(str(video), title=title, description=description,
+                                        tags=tags, privacy=privacy, on_progress=pr)
+            m = _read_meta(d)
+            m.update(youtube_id=res["id"], youtube_url=res["url"], privacy=privacy)
+            _write_meta(d, m)
+            JOBS[job].update(stage="done", done=True, url=res["url"], video_id=res["id"])
+        except youtube_upload.NeedsAuthSetup as e:
+            JOBS[job].update(done=True, error=str(e))
+        except Exception as e:  # noqa: BLE001 - surface any failure to the UI
+            JOBS[job].update(done=True, error=str(e))
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify(job=job)
+
+
 @app.route("/config")
 def config():
     return jsonify(seconds_per_image=float(os.getenv("SECONDS_PER_IMAGE", "4")),
@@ -352,13 +502,22 @@ def project(name):
 
     imgs = d / "images"
     has_video = (d / "video.mp4").exists()
+    meta = _read_meta(d)
+    pretty = d.name.replace("-", " ").replace("_", " ").title()
     return jsonify(
-        name=d.name, title=d.name.replace("-", " ").replace("_", " ").title(),
+        name=d.name, title=pretty,
         has_video=has_video,
         video_path=str((d / "video.mp4").resolve()) if has_video else "",
         has_vo=bool(_find_vo(d)),
         script=read("script.txt"), transcript=read("transcript.txt"),
         image_count=len(list(imgs.glob("*.png"))) if imgs.exists() else 0,
+        # YouTube publish state
+        yt_title=meta.get("title") or pretty,
+        yt_description=meta.get("description", ""),
+        yt_tags=meta.get("tags", ""),
+        yt_video_id=meta.get("youtube_id", ""),
+        yt_url=meta.get("youtube_url", ""),
+        yt_ready=youtube_upload.configured(),
     )
 
 
