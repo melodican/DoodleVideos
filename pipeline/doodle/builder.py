@@ -40,7 +40,7 @@ def build_project(project_dir: str, audio_path: str | None = None,
     progress("transcribe", f"Transcribing {vo.name}…")
     segs = transcribe.transcribe(str(vo))
     # merge short segments into longer scenes -> fewer images (less cost + time)
-    segs = group_segments(segs, float(os.getenv("SECONDS_PER_IMAGE", "8")))
+    segs = group_segments(segs, float(os.getenv("SECONDS_PER_IMAGE", "4")))
     (proj / "transcript.txt").write_text(transcribe.to_transcript_text(segs), encoding="utf-8")
     write_manifest(segs, str(proj / "image_manifest.json"))
     (proj / "batch_prompt.txt").write_text(batch_prompt(segs), encoding="utf-8")

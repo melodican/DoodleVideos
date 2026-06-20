@@ -19,11 +19,11 @@ def _style() -> dict:
 
 def scene_line(seg: Segment) -> str:
     """One-line visual brief for a segment. TODO: optional LLM for richer scenes."""
-    return ("Create ONE simple hand-drawn doodle showing a SINGLE clear visual idea "
-            "for this narration — one object, character, or symbol, big and centered "
-            "with lots of empty white space. If several things are mentioned, draw "
-            "only the most important one. Do NOT write the sentence on screen; show "
-            f"the idea with a single picture: \"{seg.text}\"")
+    return ("Create ONE rough, imperfect, hand-drawn doodle (NOT clipart, NOT a "
+            "clean icon) showing a SINGLE clear visual idea for this narration — one "
+            "object, character, or symbol, big and centered with lots of empty white "
+            "space. If several things are mentioned, draw only the most important. "
+            f"Do NOT write the sentence on screen; show the idea: \"{seg.text}\"")
 
 
 def per_segment_prompts(segments: list[Segment]) -> list[dict]:

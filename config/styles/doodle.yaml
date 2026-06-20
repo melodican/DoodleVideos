@@ -9,25 +9,28 @@ style:
   reference_image: ""          # optional: path to a locked style reference
 
   block: |
-    STYLE: a simple, charming hand-drawn doodle — black marker linework, like a
-    clever person sketching ONE quick idea. Amateur and playful, NOT polished.
-    ONE IDEA PER FRAME (most important rule): each image shows a SINGLE clear
-    subject or visual metaphor — one object, one stick figure, OR one symbol —
-    big and centered, surrounded by lots of empty white space. Do NOT crowd the
-    frame with multiple characters or many objects. If the narration mentions
-    several things, draw only the SINGLE most important idea. Think road signs:
-    instantly readable in one glance. Minimal and uncluttered.
-    - White background, thick slightly wobbly black outlines
-    - Stick-figure people with round heads, dot eyes, simple faces
-    - Simple shapes: one object, an arrow, a box, a symbol
-    COLOUR: flat fills only (no shading, gradients, 3D, lighting). Use colour where
-    it makes the single subject pop (e.g. an orange sunset, a purple chair); clean
-    black line-art on white is also great. Avoid muddy grey frames.
-    NO ON-SCREEN TEXT: do NOT write the narration. No sentences, no captions. At
-    most ONE bold short label of 1-3 words, spelled correctly, when it genuinely
-    helps (e.g. "HUMAN HISTORY"). Otherwise no text.
-    AVOID: busy collages, crowds of characters, many objects crammed together,
-    anime, Disney, vector art, polished illustration, realism, 3D, textures.
+    STYLE: a ROUGH, hand-drawn doodle scribbled fast with a marker — visibly drawn
+    by a human in about ten seconds, NOT clean. Embrace imperfection: wobbly lines
+    that wander and OVERSHOOT past the corners, circles that are not truly round,
+    lopsided and slightly wonky shapes, uneven line weight, the odd shaky or
+    doubled line. Charming, scruffy, full of character — like a clever friend
+    doodling on a napkin. Imperfection is the point.
+    ONE IDEA PER FRAME (most important rule): a SINGLE clear subject — one object,
+    one stick figure, OR one symbol — big and centered with lots of empty white
+    space. Never crowd the frame; if several things are mentioned, draw only the
+    SINGLE most important idea. Road-sign readable in one glance.
+    - White paper background; hand-inked black outlines that are imperfect, not uniform
+    - Stick figures with roundish heads, dot eyes, simple wonky expressive faces
+    - Loose, sketchy, hand-wobbled shapes — never geometric or ruler-straight
+    COLOUR: optional flat marker fill that slightly overshoots or under-fills the
+    lines (like colouring in by hand). Plain black line-art on white is also great.
+    Flat only — no shading, gradients, 3D, lighting.
+    NOT (critical — avoid at all costs): NOT clipart, NOT a clean icon, NOT vector
+    art, NOT a logo, NOT symmetrical, NOT smooth, NOT polished, NOT a tidy
+    colouring-book outline, NOT digital-perfect. Also no anime, Disney, 3D,
+    realism, photoreal, textures.
+    NO ON-SCREEN TEXT: no sentences or captions. At most ONE bold short label of
+    1-3 words when it genuinely helps (e.g. "HUMAN HISTORY"); otherwise none.
     FORMAT: horizontal 16:9 wide YouTube frame (not vertical, not square).
     SAFE AREA: keep the single subject centered with large EMPTY white margins at
     the very top and very bottom (top ~15% and bottom ~15% blank) — edges are

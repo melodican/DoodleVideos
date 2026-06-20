@@ -217,7 +217,7 @@ def script():
 
 @app.route("/config")
 def config():
-    return jsonify(seconds_per_image=float(os.getenv("SECONDS_PER_IMAGE", "8")),
+    return jsonify(seconds_per_image=float(os.getenv("SECONDS_PER_IMAGE", "4")),
                    quality=os.getenv("IMAGE_QUALITY", "low"))
 
 
