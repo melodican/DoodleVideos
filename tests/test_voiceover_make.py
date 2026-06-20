@@ -15,6 +15,22 @@ def test_voiceover_unavailable_without_key():
         pass
 
 
+def test_estimate_chars_collapses_whitespace():
+    from pipeline.doodle import voiceover
+    assert voiceover.estimate_chars("  hello   world\n\n") == 11
+
+
+def test_split_text_keeps_chunks_under_limit():
+    from pipeline.doodle import voiceover
+    text = "This is a sentence. " * 1000          # ~20k chars
+    chunks = voiceover._split_text(text, max_chars=4800)
+    assert len(chunks) > 1
+    assert all(len(c) <= 4800 for c in chunks)
+    # short text stays a single chunk; empty stays empty
+    assert voiceover._split_text("Just one line.") == ["Just one line."]
+    assert voiceover._split_text("   ") == []
+
+
 def _run(args, **env):
     e = dict(ENV); e.update(env)
     return subprocess.run([sys.executable, "-m", "pipeline.doodle.run", *args],

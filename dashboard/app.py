@@ -7,8 +7,14 @@ from __future__ import annotations
 import os, threading, uuid, re, pathlib
 from flask import Flask, request, jsonify, render_template_string, send_file, abort
 
+try:  # load .env so keys (ElevenLabs, OpenAI, YouTube) are picked up automatically
+    from dotenv import load_dotenv
+    load_dotenv(pathlib.Path(__file__).parent.parent / ".env")
+except Exception:  # python-dotenv is optional; shell env still works
+    pass
+
 from pipeline.doodle.builder import build_project, NeedImages
-from pipeline.doodle import script_writer
+from pipeline.doodle import script_writer, voiceover
 
 ROOT = pathlib.Path(__file__).parent.parent
 PROJECTS = ROOT / "projects"
@@ -99,8 +105,18 @@ PAGE = """
   <div class="titles" id="titles"></div>
   <button type="button" id="meta" style="margin-top:14px;background:#26262f;border:1px solid var(--line)">📝 Generate description + tags</button>
   <div id="metaout"></div>
-  <label>Voiceover (mp3 / m4a / wav)</label>
-  <input type="file" name="audio" accept="audio/*" required>
+  <label>Voiceover</label>
+  <div id="voGenRow" class="row" style="display:none">
+    <button type="button" id="voBtn" style="background:#26262f;border:1px solid var(--line)">🎙 Generate voiceover</button>
+  </div>
+  <div class="est" id="voNote"></div>
+  <div id="voStatus" style="display:none;margin-top:10px">
+    <div class="stat"><div class="spin" id="voSpin"></div>
+      <div><div class="stage" id="voStage">Narrating…</div><div class="detail" id="voDetail"></div></div></div>
+  </div>
+  <div id="voPlayer"></div>
+  <label style="margin-top:14px;font-weight:400;color:var(--mut)" id="voUploadLabel">…or upload your own (mp3 / m4a / wav)</label>
+  <input type="file" name="audio" accept="audio/*">
   <div class="est" id="est"></div>
   <button type="submit" class="primary">Generate Video</button>
 </form>
@@ -185,11 +201,53 @@ meta.onclick=async()=>{
   }catch(e){metaout.innerHTML='<div class="titles err">'+esc(''+e)+'</div>';}
   meta.disabled=false; meta.textContent=o;
 };
+// --- generate the voiceover with ElevenLabs (uses your EL quota) ---
+const voBtn=document.getElementById('voBtn'), voNote=document.getElementById('voNote'),
+      voStatus=document.getElementById('voStatus'), voStage=document.getElementById('voStage'),
+      voDetail=document.getElementById('voDetail'), voSpin=document.getElementById('voSpin'),
+      voPlayer=document.getElementById('voPlayer'), voGenRow=document.getElementById('voGenRow'),
+      nameInput=document.querySelector('input[name=name]');
+let ttsOn=false;
+function voNoteUpdate(){
+  if(!ttsOn){voNote.textContent=''; return;}
+  const chars=(scriptBox.value||'').replace(/\\s+/g,' ').trim().length;
+  voNote.textContent = chars ? 'ElevenLabs will use ~'+chars.toLocaleString()+
+    ' characters of your voice quota for this script.' : '';
+}
+scriptBox.addEventListener('input', voNoteUpdate);
+voBtn.onclick=async()=>{
+  const name=(nameInput.value||'').trim();
+  if(!name){nameInput.focus(); return;}
+  if(!scriptBox.value.trim()){scriptBox.focus(); return;}
+  voBtn.disabled=true; voPlayer.innerHTML=''; voStatus.style.display='block';
+  voSpin.style.display='block'; voStage.textContent='Narrating…'; voDetail.textContent='';
+  let j;
+  try{
+    j=await (await fetch('/voiceover',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name, script:scriptBox.value})})).json();
+  }catch(e){j={error:''+e};}
+  if(j.error){voStage.textContent='Error'; voSpin.style.display='none';
+    voDetail.innerHTML='<span class="err">'+esc(j.error)+'</span>'; voBtn.disabled=false; return;}
+  const t=setInterval(async()=>{
+    const s=await (await fetch('/status/'+j.job)).json();
+    voDetail.textContent=s.detail||'';
+    if(s.done){
+      clearInterval(t); voBtn.disabled=false; voSpin.style.display='none';
+      if(s.error){voStage.textContent='Error'; voDetail.innerHTML='<span class="err">'+esc(s.error)+'</span>';}
+      else{voStage.textContent='Voiceover ready ✅'; voDetail.textContent='You can now Generate Video.';
+        voPlayer.innerHTML='<audio controls src="/audio/'+name+'?v='+Date.now()+'"></audio>';
+        loadProjects(name);}
+    }
+  },1200);
+};
 // --- live cost estimate (no API call; reads audio length in the browser) ---
 let CFG={seconds_per_image:8,quality:'low'}, audioDur=0;
 const PRICE={low:0.02,medium:0.06,high:0.19};
 const est=document.getElementById('est'), audioInput=document.querySelector('input[name=audio]');
-fetch('/config').then(r=>r.json()).then(c=>{CFG=c; recalc();}).catch(()=>{});
+fetch('/config').then(r=>r.json()).then(c=>{CFG=c; recalc();
+  ttsOn=!!c.tts_available; voGenRow.style.display=ttsOn?'flex':'none'; voNoteUpdate();
+  if(!ttsOn){document.getElementById('voUploadLabel').textContent='Voiceover (mp3 / m4a / wav)';}
+}).catch(()=>{});
 audioInput.onchange=()=>{
   const file=audioInput.files[0]; if(!file){audioDur=0; est.textContent=''; return;}
   const a=document.createElement('audio'); a.preload='metadata';
@@ -249,14 +307,18 @@ def index():
 @app.route("/build", methods=["POST"])
 def build():
     name = _slug(request.form.get("name", ""))
-    audio = request.files.get("audio")
-    if not audio or not audio.filename:
-        return jsonify(error="Please choose a voiceover file."), 400
     proj = PROJECTS / name
     proj.mkdir(parents=True, exist_ok=True)
-    ext = pathlib.Path(audio.filename).suffix.lower() or ".mp3"
-    vo = proj / f"vo{ext}"
-    audio.save(str(vo))
+    audio = request.files.get("audio")
+    if audio and audio.filename:                     # an uploaded file wins
+        ext = pathlib.Path(audio.filename).suffix.lower() or ".mp3"
+        vo = proj / f"vo{ext}"
+        audio.save(str(vo))
+    else:                                            # else use a VO already in the folder
+        vo = _find_vo(proj)
+        if not vo:
+            return jsonify(error="No voiceover — upload one or click "
+                                 "“Generate voiceover” first."), 400
     script = (request.form.get("script") or "").strip()
     if script:
         (proj / "script.txt").write_text(script, encoding="utf-8")
@@ -279,6 +341,40 @@ def build():
 
     threading.Thread(target=run, daemon=True).start()
     return jsonify(job=job)
+
+
+@app.route("/voiceover", methods=["POST"])
+def make_voiceover():
+    """Synthesize a VO from the script via ElevenLabs, save it into the project."""
+    data = request.get_json(silent=True) or {}
+    name = _slug(data.get("name", ""))
+    script = (data.get("script") or "").strip()
+    voice_id = (data.get("voice_id") or "").strip() or None
+    if not script:
+        return jsonify(error="Write or paste a script first."), 400
+    if not voiceover.available():
+        return jsonify(error="No ELEVENLABS_API_KEY set in .env — "
+                             "add it (and ELEVENLABS_VOICE_ID), or upload your own VO."), 400
+    proj = PROJECTS / name
+    proj.mkdir(parents=True, exist_ok=True)
+    (proj / "script.txt").write_text(script, encoding="utf-8")
+
+    job = uuid.uuid4().hex[:8]
+    JOBS[job] = {"stage": "voiceover", "detail": "", "done": False, "error": None, "project": name}
+
+    def run():
+        def pr(i, n):
+            JOBS[job]["detail"] = f"Narrating chunk {i}/{n}"
+        try:
+            vo = proj / "vo.mp3"
+            voiceover.synthesize(script, str(vo), voice_id=voice_id, on_progress=pr)
+            JOBS[job].update(stage="done", done=True, audio=True,
+                             video_path=str(vo.resolve()))
+        except Exception as e:  # noqa: BLE001 - surface any failure to the UI
+            JOBS[job].update(done=True, error=str(e))
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify(job=job, chars=voiceover.estimate_chars(script))
 
 
 @app.route("/script", methods=["POST"])
@@ -310,7 +406,8 @@ def metadata():
 @app.route("/config")
 def config():
     return jsonify(seconds_per_image=float(os.getenv("SECONDS_PER_IMAGE", "4")),
-                   quality=os.getenv("IMAGE_QUALITY", "low"))
+                   quality=os.getenv("IMAGE_QUALITY", "low"),
+                   tts_available=voiceover.available())
 
 
 @app.route("/status/<job>")
