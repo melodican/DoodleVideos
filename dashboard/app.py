@@ -8,7 +8,7 @@ import os, threading, uuid, re, pathlib
 from flask import Flask, request, jsonify, render_template_string, send_file, abort
 
 from pipeline.doodle.builder import build_project, NeedImages
-from pipeline.doodle import script_writer
+from pipeline.doodle import script_writer, thumbnail
 
 ROOT = pathlib.Path(__file__).parent.parent
 PROJECTS = ROOT / "projects"
@@ -219,6 +219,41 @@ async function loadProjects(active){
 }
 newBtn.onclick=()=>{detailView.style.display='none'; builderView.style.display='block';
   [...plist.children].forEach(c=>c.classList&&c.classList.remove('active'));};
+function thumbCard(name,p){
+  const n=p.image_count||0;
+  const preview = p.has_thumb ?
+    '<img id="thImg" src="/thumb/'+name+'?v='+Date.now()+'" style="width:100%;border-radius:12px;border:1px solid var(--line);margin-top:14px">'+
+    '<div class="done"><a class="dl" id="thDl" href="/thumb/'+name+'?dl=1">⬇ Download thumbnail</a></div>'
+    : '<div id="thImgWrap"></div>';
+  return '<div class="card" style="margin-top:24px"><h1 style="font-size:20px">Thumbnail</h1>'+
+    '<p class="sub" style="margin-bottom:0">A bold 1280×720 thumbnail from one of your doodle frames — free, no image credits.</p>'+
+    '<label>Title text</label><input type="text" id="thTitle" value="'+esc(p.title)+'">'+
+    '<label>Doodle frame <span style="color:var(--mut);font-weight:400">(0–'+(Math.max(0,n-1))+')</span></label>'+
+    '<input type="number" id="thFrame" value="0" min="0" max="'+(Math.max(0,n-1))+'" style="width:120px">'+
+    '<div class="row" style="margin-top:18px"><button type="button" id="thBtn" class="primary" style="margin-top:0">🖼 Generate thumbnail</button></div>'+
+    '<div id="thStatus" class="detail" style="margin-top:10px"></div>'+preview+'</div>';
+}
+function wireThumb(name,p){
+  const btn=document.getElementById('thBtn'); if(!btn) return;
+  const st=document.getElementById('thStatus');
+  btn.onclick=async()=>{
+    btn.disabled=true; const o=btn.textContent; btn.textContent='Composing…'; st.textContent='';
+    let j; try{ j=await (await fetch('/thumbnail/'+name,{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title:document.getElementById('thTitle').value,
+        image_index:parseInt(document.getElementById('thFrame').value)||0})})).json(); }
+    catch(e){ j={error:''+e}; }
+    btn.disabled=false; btn.textContent=o;
+    if(j.error){st.innerHTML='<span class="err">'+esc(j.error)+'</span>'; return;}
+    st.textContent='Made from frame '+j.frame+' of '+j.frames+'.';
+    let img=document.getElementById('thImg');
+    if(!img){const w=document.getElementById('thImgWrap');
+      w.innerHTML='<img id="thImg" style="width:100%;border-radius:12px;border:1px solid var(--line);margin-top:14px">'+
+        '<div class="done"><a class="dl" id="thDl" href="/thumb/'+name+'?dl=1">⬇ Download thumbnail</a></div>';
+      img=document.getElementById('thImg');}
+    img.src=j.url;
+  };
+}
 async function openProject(name){
   builderView.style.display='none'; detailView.style.display='block';
   detailView.innerHTML='<p class="sub">Loading…</p>'; loadProjects(name);
@@ -234,7 +269,9 @@ async function openProject(name){
   h+='<div class="path" style="margin-top:14px">'+(p.image_count||0)+' images generated</div>';
   if(p.script){h+=field('Script',p.script,180);}
   if(p.transcript){h+=field('Transcript (timed)',p.transcript,160);}
+  if(p.image_count){h+=thumbCard(name,p);}
   detailView.innerHTML=h;
+  if(p.image_count){wireThumb(name,p);}
 }
 loadProjects();
 </script></body></html>
@@ -359,7 +396,45 @@ def project(name):
         has_vo=bool(_find_vo(d)),
         script=read("script.txt"), transcript=read("transcript.txt"),
         image_count=len(list(imgs.glob("*.png"))) if imgs.exists() else 0,
+        has_thumb=(d / "thumbnail.png").exists(),
     )
+
+
+def _doodle_frames(d: pathlib.Path):
+    imgs = d / "images"
+    return sorted(imgs.glob("*.png")) if imgs.exists() else []
+
+
+@app.route("/thumbnail/<name>", methods=["POST"])
+def make_thumb(name):
+    d = PROJECTS / _slug(name)
+    if not d.is_dir():
+        return jsonify(error="Project not found"), 404
+    frames = _doodle_frames(d)
+    if not frames:
+        return jsonify(error="No doodle images yet — render the video first."), 400
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or d.name.replace("-", " ")).strip()
+    try:
+        idx = int(data.get("image_index", 0))
+    except (TypeError, ValueError):
+        idx = 0
+    idx = max(0, min(idx, len(frames) - 1))
+    try:
+        thumbnail.make_thumbnail(str(frames[idx]), title, str(d / "thumbnail.png"))
+    except Exception as e:  # noqa: BLE001 - surface to UI
+        return jsonify(error=str(e)), 500
+    return jsonify(ok=True, frame=idx, frames=len(frames),
+                   url=f"/thumb/{d.name}?v={uuid.uuid4().hex[:6]}")
+
+
+@app.route("/thumb/<name>")
+def thumb(name):
+    p = PROJECTS / _slug(name) / "thumbnail.png"
+    if not p.exists():
+        abort(404)
+    return send_file(str(p), as_attachment=bool(request.args.get("dl")),
+                     download_name=f"{_slug(name)}-thumb.png")
 
 
 @app.route("/audio/<name>")
