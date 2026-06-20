@@ -59,11 +59,16 @@ def missing(segments: list[Segment], images_dir: str) -> list[str]:
     return [s.filename for s in segments if not (d / s.filename).exists()]
 
 
-def generate(per_segment_prompts: list[dict], out_dir: str, on_progress=None) -> list[str]:
+def generate(per_segment_prompts: list[dict], out_dir: str, on_progress=None,
+             reference_path: str | None = None) -> list[str]:
     """Generate one image per prompt via the OpenAI Images API (GPT-Image). Saves
     by the manifest filename. Honors IMAGE_GEN_MODEL / IMAGE_QUALITY / IMAGE_SIZE
     and falls back to gpt-image-1 if the configured model id is rejected. Raises
     if no key is set so callers can fall back to the manual checkpoint.
+
+    When `reference_path` is given, every scene is generated through the image
+    *edits* endpoint with that reference, so the whole video keeps one consistent
+    hand (a style lock) instead of GPT-Image drifting between frames.
     """
     if not available():
         raise RuntimeError("no image API key set (OPENAI_API_KEY / IMAGE_GEN_API_KEY)")
@@ -74,7 +79,23 @@ def generate(per_segment_prompts: list[dict], out_dir: str, on_progress=None) ->
     size = os.getenv("IMAGE_SIZE", "1536x1024")     # landscape; padded to 16:9 (white)
     out = pathlib.Path(out_dir); out.mkdir(parents=True, exist_ok=True)
 
+    ref_bytes = None
+    if reference_path:
+        rp = pathlib.Path(reference_path)
+        if not rp.exists():
+            raise FileNotFoundError(f"reference image not found: {rp}")
+        ref_bytes = rp.read_bytes()
+
     def _one(prompt: str, mdl: str):
+        if ref_bytes is not None:
+            # edits endpoint = "draw this prompt in the style of the reference"
+            return requests.post(
+                "https://api.openai.com/v1/images/edits",
+                headers={"Authorization": f"Bearer {key}"},
+                data={"model": mdl, "prompt": prompt, "size": size, "quality": quality, "n": 1},
+                files={"image": ("reference.png", ref_bytes, "image/png")},
+                timeout=180,
+            )
         return requests.post(
             "https://api.openai.com/v1/images/generations",
             headers={"Authorization": f"Bearer {key}"},

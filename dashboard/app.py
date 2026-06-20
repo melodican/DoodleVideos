@@ -101,6 +101,8 @@ PAGE = """
   <div id="metaout"></div>
   <label>Voiceover (mp3 / m4a / wav)</label>
   <input type="file" name="audio" accept="audio/*" required>
+  <label>Style reference <span style="color:var(--mut);font-weight:400">(optional — one doodle image to lock a consistent hand across the whole video)</span></label>
+  <input type="file" name="reference" accept="image/*">
   <div class="est" id="est"></div>
   <button type="submit" class="primary">Generate Video</button>
 </form>
@@ -260,6 +262,10 @@ def build():
     script = (request.form.get("script") or "").strip()
     if script:
         (proj / "script.txt").write_text(script, encoding="utf-8")
+    # optional style-lock reference image (kept in the project as reference.png)
+    ref = request.files.get("reference")
+    if ref and ref.filename:
+        ref.save(str(proj / "reference.png"))
 
     job = uuid.uuid4().hex[:8]
     JOBS[job] = {"stage": "queued", "detail": "", "done": False, "error": None, "project": name}
