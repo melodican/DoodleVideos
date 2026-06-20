@@ -99,6 +99,10 @@ PAGE = """
   <div class="titles" id="titles"></div>
   <button type="button" id="meta" style="margin-top:14px;background:#26262f;border:1px solid var(--line)">📝 Generate description + tags</button>
   <div id="metaout"></div>
+  <label>Pace — seconds per image <span id="spiVal" style="color:var(--accent2);font-weight:700"></span>
+    <span style="color:var(--mut);font-weight:400">(lower = more images, more cost; higher = fewer)</span></label>
+  <input type="range" name="seconds_per_image" id="spi" min="2" max="12" step="1"
+         style="width:100%;accent-color:var(--accent)">
   <label>Voiceover (mp3 / m4a / wav)</label>
   <input type="file" name="audio" accept="audio/*" required>
   <div class="est" id="est"></div>
@@ -189,7 +193,11 @@ meta.onclick=async()=>{
 let CFG={seconds_per_image:8,quality:'low'}, audioDur=0;
 const PRICE={low:0.02,medium:0.06,high:0.19};
 const est=document.getElementById('est'), audioInput=document.querySelector('input[name=audio]');
-fetch('/config').then(r=>r.json()).then(c=>{CFG=c; recalc();}).catch(()=>{});
+const spi=document.getElementById('spi'), spiVal=document.getElementById('spiVal');
+spi.oninput=()=>{spiVal.textContent=spi.value+'s'; recalc();};
+fetch('/config').then(r=>r.json()).then(c=>{CFG=c;
+  spi.value=Math.min(12,Math.max(2,Math.round(c.seconds_per_image||4)));
+  spiVal.textContent=spi.value+'s'; recalc();}).catch(()=>{});
 audioInput.onchange=()=>{
   const file=audioInput.files[0]; if(!file){audioDur=0; est.textContent=''; return;}
   const a=document.createElement('audio'); a.preload='metadata';
@@ -198,7 +206,8 @@ audioInput.onchange=()=>{
 };
 function recalc(){
   if(!audioDur){est.textContent=''; return;}
-  const n=Math.max(1,Math.ceil(audioDur/(CFG.seconds_per_image||8)));
+  const per=parseFloat(spi.value)||CFG.seconds_per_image||8;
+  const n=Math.max(1,Math.ceil(audioDur/per));
   const cost=n*(PRICE[CFG.quality]||PRICE.low);
   const mins=(audioDur/60).toFixed(1);
   est.textContent='Estimate: ~'+n+' images for a '+mins+' min video ≈ $'+cost.toFixed(2)+
@@ -260,6 +269,10 @@ def build():
     script = (request.form.get("script") or "").strip()
     if script:
         (proj / "script.txt").write_text(script, encoding="utf-8")
+    try:
+        spi = float(request.form.get("seconds_per_image") or 0) or None
+    except ValueError:
+        spi = None
 
     job = uuid.uuid4().hex[:8]
     JOBS[job] = {"stage": "queued", "detail": "", "done": False, "error": None, "project": name}
@@ -269,7 +282,7 @@ def build():
             JOBS[job]["stage"] = stage
             JOBS[job]["detail"] = detail
         try:
-            build_project(str(proj), audio_path=str(vo), progress=pr)
+            build_project(str(proj), audio_path=str(vo), progress=pr, seconds_per_image=spi)
             JOBS[job].update(stage="done", done=True,
                              video_path=str((proj / "video.mp4").resolve()))
         except NeedImages:

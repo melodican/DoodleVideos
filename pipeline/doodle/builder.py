@@ -26,10 +26,21 @@ class NeedImages(RuntimeError):
     """Raised when images can't be produced (no API key and none supplied)."""
 
 
+def scene_seconds(override: float | None = None) -> float:
+    """Seconds-per-scene to use: a per-project override, else SECONDS_PER_IMAGE."""
+    if override is not None and override > 0:
+        return float(override)
+    return float(os.getenv("SECONDS_PER_IMAGE", "4"))
+
+
 def build_project(project_dir: str, audio_path: str | None = None,
-                  images_in: str | None = None, progress=None) -> str:
+                  images_in: str | None = None, progress=None,
+                  seconds_per_image: float | None = None) -> str:
     """Transcribe the VO, generate doodles, assemble a synced 16:9 mp4.
-    Returns the path to video.mp4. Calls progress(stage, detail)."""
+    Returns the path to video.mp4. Calls progress(stage, detail).
+
+    `seconds_per_image` overrides the SECONDS_PER_IMAGE env for this build only
+    (higher = fewer, longer scenes = fewer images = cheaper)."""
     progress = progress or _noop
     proj = pathlib.Path(project_dir); proj.mkdir(parents=True, exist_ok=True)
 
@@ -40,7 +51,7 @@ def build_project(project_dir: str, audio_path: str | None = None,
     progress("transcribe", f"Transcribing {vo.name}…")
     segs = transcribe.transcribe(str(vo))
     # merge short segments into longer scenes -> fewer images (less cost + time)
-    segs = group_segments(segs, float(os.getenv("SECONDS_PER_IMAGE", "4")))
+    segs = group_segments(segs, scene_seconds(seconds_per_image))
     (proj / "transcript.txt").write_text(transcribe.to_transcript_text(segs), encoding="utf-8")
     write_manifest(segs, str(proj / "image_manifest.json"))
     (proj / "batch_prompt.txt").write_text(batch_prompt(segs), encoding="utf-8")
