@@ -135,6 +135,8 @@ PAGE = """
   <div id="voPlayer"></div>
   <label style="margin-top:14px;font-weight:400;color:var(--mut)" id="voUploadLabel">…or upload your own (mp3 / m4a / wav)</label>
   <input type="file" name="audio" accept="audio/*">
+  <label>Style reference <span style="color:var(--mut);font-weight:400">(optional — one doodle image to lock a consistent hand across the whole video)</span></label>
+  <input type="file" name="reference" accept="image/*">
   <div class="est" id="est"></div>
   <button type="submit" class="primary">Generate Video</button>
 </form>
@@ -464,6 +466,11 @@ def build():
         spi = float(request.form.get("seconds_per_image") or 0) or None
     except ValueError:
         spi = None
+    # optional style-lock reference image (kept in the project as reference.png,
+    # auto-detected by build_project via reference_for)
+    ref = request.files.get("reference")
+    if ref and ref.filename:
+        ref.save(str(proj / "reference.png"))
 
     job = uuid.uuid4().hex[:8]
     JOBS[job] = {"stage": "queued", "detail": "", "done": False, "error": None, "project": name}

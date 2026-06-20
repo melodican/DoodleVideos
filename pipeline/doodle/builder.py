@@ -33,14 +33,37 @@ def scene_seconds(override: float | None = None) -> float:
     return float(os.getenv("SECONDS_PER_IMAGE", "4"))
 
 
+_STYLE_DIR = pathlib.Path(__file__).parent.parent.parent / "config" / "styles"
+_REF_NAMES = ("reference.png", "reference.jpg", "reference.jpeg", "reference.webp")
+
+
+def reference_for(proj: pathlib.Path, override: str | None = None):
+    """Style-lock reference image to use, by precedence:
+    explicit override → a reference.* in the project → a global config/styles one."""
+    if override:
+        p = pathlib.Path(override)
+        return p if p.exists() else None
+    for name in _REF_NAMES:
+        if (proj / name).exists():
+            return proj / name
+    for name in _REF_NAMES:
+        if (_STYLE_DIR / name).exists():
+            return _STYLE_DIR / name
+    return None
+
+
 def build_project(project_dir: str, audio_path: str | None = None,
                   images_in: str | None = None, progress=None,
-                  seconds_per_image: float | None = None) -> str:
+                  seconds_per_image: float | None = None,
+                  reference_path: str | None = None) -> str:
     """Transcribe the VO, generate doodles, assemble a synced 16:9 mp4.
     Returns the path to video.mp4. Calls progress(stage, detail).
 
     `seconds_per_image` overrides the SECONDS_PER_IMAGE env for this build only
-    (higher = fewer, longer scenes = fewer images = cheaper)."""
+    (higher = fewer, longer scenes = fewer images = cheaper).
+
+    `reference_path` (or a reference.* in the project / config/styles) locks every
+    scene to one consistent hand via the image edits endpoint."""
     progress = progress or _noop
     proj = pathlib.Path(project_dir); proj.mkdir(parents=True, exist_ok=True)
 
@@ -63,8 +86,12 @@ def build_project(project_dir: str, audio_path: str | None = None,
     elif images.available():
         prompts = per_segment_prompts(segs)
         n = len(prompts)
+        ref = reference_for(proj, reference_path)
+        if ref:
+            progress("segments", f"{len(segs)} segments · style-locked to {ref.name}")
         images.generate(prompts, str(images_dir),
-                        on_progress=lambda i, _n: progress("images", f"Generating image {i}/{n}"))
+                        on_progress=lambda i, _n: progress("images", f"Generating image {i}/{n}"),
+                        reference_path=str(ref) if ref else None)
     else:
         raise NeedImages("no OPENAI_API_KEY and no images supplied — see batch_prompt.txt")
 
