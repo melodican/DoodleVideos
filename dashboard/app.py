@@ -112,7 +112,7 @@ PAGE = """
 </div>
 </div>
 </div>
-<div id="detail" style="display:none"></div>
+<div id="projview" style="display:none"></div>
 </main>
 </div>
 <script>
@@ -206,7 +206,7 @@ function recalc(){
 }
 // --- project library sidebar ---
 const plist=document.getElementById('plist'), builderView=document.getElementById('builder'),
-      detailView=document.getElementById('detail'), newBtn=document.getElementById('newBtn');
+      detailView=document.getElementById('projview'), newBtn=document.getElementById('newBtn');
 async function loadProjects(active){
   let items=[]; try{items=await (await fetch('/projects')).json();}catch(e){}
   plist.innerHTML = items.length ? '' : '<div class="path" style="padding:8px">No projects yet</div>';
