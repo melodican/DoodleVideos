@@ -78,6 +78,8 @@ PAGE = """
   </div>
   <textarea name="script" id="script" placeholder="Paste a script, or generate one above. Copy it into ElevenLabs to make your voiceover."></textarea>
   <div class="titles" id="titles"></div>
+  <button type="button" id="meta" style="margin-top:14px;background:#26262f;border:1px solid var(--line)">📝 Generate description + tags</button>
+  <div id="metaout"></div>
   <label>Voiceover (mp3 / m4a / wav)</label>
   <input type="file" name="audio" accept="audio/*" required>
   <div class="est" id="est"></div>
@@ -139,6 +141,26 @@ function poll(job){
     }
   },1500);
 }
+// --- generate description + tags with Claude (subscription, free) ---
+const meta=document.getElementById('meta'), metaout=document.getElementById('metaout');
+const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function field(label,val,h){return '<label style="margin-top:14px">'+label+
+  ' <span style="color:var(--mut);font-weight:400">(click to select)</span></label>'+
+  '<textarea readonly style="height:'+h+'px" onclick="this.select()">'+esc(val)+'</textarea>';}
+meta.onclick=async()=>{
+  const tp=topic.value.trim()||document.querySelector('input[name=name]').value.trim();
+  if(!tp){topic.focus();return;}
+  meta.disabled=true; const o=meta.textContent; meta.textContent='Generating… (~30s)';
+  metaout.innerHTML='';
+  try{
+    const r=await fetch('/metadata',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({topic:tp,script:scriptBox.value})});
+    const j=await r.json();
+    if(j.error){metaout.innerHTML='<div class="titles err">'+esc(j.error)+'</div>';}
+    else{metaout.innerHTML=field('Title',j.title,46)+field('Description',j.description,180)+field('Tags',j.tags,80);}
+  }catch(e){metaout.innerHTML='<div class="titles err">'+esc(''+e)+'</div>';}
+  meta.disabled=false; meta.textContent=o;
+};
 // --- live cost estimate (no API call; reads audio length in the browser) ---
 let CFG={seconds_per_image:8,quality:'low'}, audioDur=0;
 const PRICE={low:0.02,medium:0.06,high:0.19};
@@ -211,6 +233,19 @@ def script():
         # Uses the Claude Code CLI on your subscription — no API credits.
         result = script_writer.generate_via_claude_code(topic)
         return jsonify(result)
+    except Exception as e:  # noqa: BLE001
+        return jsonify(error=str(e)), 500
+
+
+@app.route("/metadata", methods=["POST"])
+def metadata():
+    data = request.get_json(silent=True) or {}
+    topic = (data.get("topic") or "").strip()
+    script = (data.get("script") or "").strip()
+    if not topic:
+        return jsonify(error="Enter a topic (or project name) first."), 400
+    try:
+        return jsonify(script_writer.generate_metadata_via_claude_code(topic, script))
     except Exception as e:  # noqa: BLE001
         return jsonify(error=str(e)), 500
 

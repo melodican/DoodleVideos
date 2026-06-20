@@ -12,6 +12,7 @@ import os, json, pathlib, re, shutil, subprocess, urllib.request
 _ROOT = pathlib.Path(__file__).parent.parent.parent
 _PROMPT = _ROOT / "prompts" / "doodle_script.md"
 _FINANCE_PROMPT = _ROOT / "prompts" / "finance_script.md"
+_FINANCE_META_PROMPT = _ROOT / "prompts" / "finance_metadata.md"
 WPM = 150
 
 
@@ -45,6 +46,36 @@ def split_script(text: str) -> dict:
     parts = re.split(r"\n-{3,}\s*\n", text, maxsplit=1)
     return {"script": parts[0].strip(),
             "extras": parts[1].strip() if len(parts) > 1 else ""}
+
+
+def generate_metadata_via_claude_code(topic: str, script: str = "") -> dict:
+    """Generate YouTube title/description/tags via the Claude Code CLI (subscription,
+    no API credits). Returns {"title", "description", "tags"}."""
+    if not claude_code_available():
+        raise RuntimeError("Claude Code CLI ('claude') not found on PATH.")
+    tmpl = _FINANCE_META_PROMPT.read_text(encoding="utf-8")
+    prompt = tmpl.replace("{topic}", topic).replace("{script}", (script or "")[:4000])
+    env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+    proc = subprocess.run(["claude", "-p", prompt], capture_output=True, text=True,
+                          timeout=300, stdin=subprocess.DEVNULL, env=env)
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or "claude CLI failed").strip()[:400])
+    return parse_metadata(proc.stdout.strip())
+
+
+def parse_metadata(text: str) -> dict:
+    """Pull TITLE / DESCRIPTION / TAGS out of the model output."""
+    out = {"title": "", "description": "", "tags": ""}
+    mt = re.search(r"TITLE:\s*(.+)", text)
+    if mt:
+        out["title"] = mt.group(1).strip()
+    md = re.search(r"DESCRIPTION:\s*(.*?)(?:\nTAGS:|\Z)", text, re.S)
+    if md:
+        out["description"] = md.group(1).strip()
+    mg = re.search(r"TAGS:\s*(.+)", text, re.S)
+    if mg:
+        out["tags"] = " ".join(mg.group(1).strip().splitlines()).strip()
+    return out
 
 
 def _render_prompt(topic: str, minutes: float) -> str:
