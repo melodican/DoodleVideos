@@ -29,8 +29,19 @@ PAGE = """
        --accent:#7c5cff;--accent2:#f5c542;--ok:#34d399}
  *{box-sizing:border-box}
  body{font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-      background:var(--bg);color:var(--txt);margin:0;padding:44px 16px}
- .wrap{max-width:680px;margin:0 auto}
+      background:var(--bg);color:var(--txt);margin:0}
+ .app{display:flex;min-height:100vh}
+ .side{width:250px;flex:0 0 250px;border-right:1px solid var(--line);background:#121217;
+       padding:20px 14px;height:100vh;position:sticky;top:0;overflow-y:auto}
+ .brand{font-size:18px;font-weight:800;padding:4px 8px 14px}
+ .newbtn{width:100%;margin-bottom:14px}
+ .plist{display:flex;flex-direction:column;gap:2px}
+ .pitem{display:block;width:100%;text-align:left;background:transparent;color:var(--txt);
+        border:0;border-radius:8px;padding:9px 10px;font:inherit;font-weight:600;cursor:pointer}
+ .pitem:hover{background:#1e1e26;opacity:1} .pitem.active{background:#26262f}
+ .pitem small{display:block;color:var(--mut);font-weight:400;font-size:12px;margin-top:1px}
+ .main{flex:1;max-width:760px;padding:40px 28px}
+ audio{width:100%;margin-top:8px}
  h1{font-size:26px;margin:0 0 4px} .sub{color:var(--mut);margin:0 0 24px}
  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
  label{display:block;font-weight:600;margin:18px 0 6px;font-size:14px}
@@ -64,8 +75,16 @@ PAGE = """
  .path{color:var(--mut);font-size:13px;margin-top:10px;word-break:break-all}
  .err{color:#fca5a5}
  .est{color:var(--accent2);font-size:13px;margin-top:12px}
-</style></head><body><div class="wrap">
-<h1>🎬 Doodle Studio</h1>
+</style></head><body>
+<div class="app">
+<aside class="side">
+  <div class="brand">🎬 Doodle Studio</div>
+  <button class="newbtn" id="newBtn">＋ New Video</button>
+  <div class="plist" id="plist"></div>
+</aside>
+<main class="main">
+<div id="builder">
+<h1>New Video</h1>
 <p class="sub">Write a script with Claude, drop in your ElevenLabs voiceover, get a synced doodle video.</p>
 <div class="card">
 <form id="f">
@@ -91,7 +110,11 @@ PAGE = """
   <div class="bar"><div id="fill"></div></div>
   <div id="result"></div>
 </div>
-</div></div>
+</div>
+</div>
+<div id="detail" style="display:none"></div>
+</main>
+</div>
 <script>
 const gen=document.getElementById('gen'), topic=document.getElementById('topic'),
       scriptBox=document.getElementById('script'), titles=document.getElementById('titles');
@@ -137,7 +160,8 @@ function poll(job){
       else{fill.style.width='100%'; stage.textContent='Done ✅'; detail.textContent='';
         result.innerHTML='<video controls src="/video/'+j.project+'?v='+Date.now()+'"></video>'+
           '<div class="done"><a class="dl" href="/video/'+j.project+'?dl=1">⬇ Download MP4 for YouTube</a>'+
-          (j.video_path?'<div class="path">Saved at: '+j.video_path+'</div>':'')+'</div>';}
+          (j.video_path?'<div class="path">Saved at: '+j.video_path+'</div>':'')+'</div>';
+        loadProjects(j.project);}
     }
   },1500);
 }
@@ -180,6 +204,39 @@ function recalc(){
   est.textContent='Estimate: ~'+n+' images for a '+mins+' min video ≈ $'+cost.toFixed(2)+
     ' at '+CFG.quality+' quality (+~$0.01 transcription)';
 }
+// --- project library sidebar ---
+const plist=document.getElementById('plist'), builderView=document.getElementById('builder'),
+      detailView=document.getElementById('detail'), newBtn=document.getElementById('newBtn');
+async function loadProjects(active){
+  let items=[]; try{items=await (await fetch('/projects')).json();}catch(e){}
+  plist.innerHTML = items.length ? '' : '<div class="path" style="padding:8px">No projects yet</div>';
+  items.forEach(p=>{
+    const b=document.createElement('button');
+    b.className='pitem'+(p.name===active?' active':'');
+    b.innerHTML=esc(p.title)+'<small>'+(p.has_video?'🎬 video ready':'⏳ no video')+'</small>';
+    b.onclick=()=>openProject(p.name); plist.appendChild(b);
+  });
+}
+newBtn.onclick=()=>{detailView.style.display='none'; builderView.style.display='block';
+  [...plist.children].forEach(c=>c.classList&&c.classList.remove('active'));};
+async function openProject(name){
+  builderView.style.display='none'; detailView.style.display='block';
+  detailView.innerHTML='<p class="sub">Loading…</p>'; loadProjects(name);
+  let p; try{p=await (await fetch('/project/'+name)).json();}
+  catch(e){detailView.innerHTML='<p class="err">Failed to load.</p>'; return;}
+  if(p.error){detailView.innerHTML='<p class="err">'+esc(p.error)+'</p>'; return;}
+  let h='<h1>'+esc(p.title)+'</h1>';
+  if(p.has_video){h+='<video controls src="/video/'+name+'?v='+Date.now()+'"></video>'+
+    '<div class="done"><a class="dl" href="/video/'+name+'?dl=1">⬇ Download MP4</a>'+
+    (p.video_path?'<div class="path">'+esc(p.video_path)+'</div>':'')+'</div>';}
+  else{h+='<p class="sub">No video rendered yet for this project.</p>';}
+  if(p.has_vo){h+='<label>Voiceover</label><audio controls src="/audio/'+name+'"></audio>';}
+  h+='<div class="path" style="margin-top:14px">'+(p.image_count||0)+' images generated</div>';
+  if(p.script){h+=field('Script',p.script,180);}
+  if(p.transcript){h+=field('Transcript (timed)',p.transcript,160);}
+  detailView.innerHTML=h;
+}
+loadProjects();
 </script></body></html>
 """
 
@@ -259,6 +316,58 @@ def config():
 @app.route("/status/<job>")
 def status(job):
     return jsonify(JOBS.get(job, {"error": "unknown job", "done": True}))
+
+
+_AUDIO_EXT = (".mp3", ".m4a", ".wav", ".aac", ".aiff", ".ogg")
+
+
+def _find_vo(d: pathlib.Path):
+    for p in sorted(d.glob("vo.*")) + sorted(d.glob("*")):
+        if p.is_file() and p.suffix.lower() in _AUDIO_EXT:
+            return p
+    return None
+
+
+@app.route("/projects")
+def projects():
+    out = []
+    if PROJECTS.exists():
+        dirs = [d for d in PROJECTS.iterdir() if d.is_dir()]
+        for d in sorted(dirs, key=lambda p: p.stat().st_mtime, reverse=True):
+            out.append({"name": d.name,
+                        "title": d.name.replace("-", " ").replace("_", " ").title(),
+                        "has_video": (d / "video.mp4").exists()})
+    return jsonify(out)
+
+
+@app.route("/project/<name>")
+def project(name):
+    d = PROJECTS / _slug(name)
+    if not d.is_dir():
+        return jsonify(error="Project not found"), 404
+
+    def read(f):
+        p = d / f
+        return p.read_text(encoding="utf-8") if p.exists() else ""
+
+    imgs = d / "images"
+    has_video = (d / "video.mp4").exists()
+    return jsonify(
+        name=d.name, title=d.name.replace("-", " ").replace("_", " ").title(),
+        has_video=has_video,
+        video_path=str((d / "video.mp4").resolve()) if has_video else "",
+        has_vo=bool(_find_vo(d)),
+        script=read("script.txt"), transcript=read("transcript.txt"),
+        image_count=len(list(imgs.glob("*.png"))) if imgs.exists() else 0,
+    )
+
+
+@app.route("/audio/<name>")
+def audio(name):
+    vo = _find_vo(PROJECTS / _slug(name))
+    if not vo:
+        abort(404)
+    return send_file(str(vo))
 
 
 @app.route("/video/<name>")
