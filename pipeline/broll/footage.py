@@ -6,10 +6,21 @@ can judge sync/captions/assembly before signing up. Marginal cost: £0 (Pexels i
 free); this is the piece that replaces Vidrush's expensive web-footage step.
 """
 from __future__ import annotations
-import os, hashlib, pathlib, subprocess, shutil
+import os, hashlib, pathlib, subprocess, shutil, functools
 
 _SEARCH = "https://api.pexels.com/videos/search"
 _FONT = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+
+
+@functools.lru_cache(maxsize=1)
+def _has_drawtext() -> bool:
+    """Not every ffmpeg build ships libfreetype (drawtext). Check once."""
+    try:
+        out = subprocess.run(["ffmpeg", "-hide_banner", "-filters"],
+                             capture_output=True, text=True, check=True).stdout
+        return " drawtext " in out
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def available() -> bool:
@@ -63,7 +74,7 @@ def _placeholder(query: str, out_path: str, seconds: float = 5.0) -> str:
     out = pathlib.Path(out_path); out.parent.mkdir(parents=True, exist_ok=True)
     label = query.replace("'", "").replace(":", " ").upper()[:40]
     draw = ""
-    if pathlib.Path(_FONT).exists():
+    if pathlib.Path(_FONT).exists() and _has_drawtext():
         draw = (f",drawtext=fontfile='{_FONT}':text='{label}':fontcolor=white@0.85:"
                 f"fontsize=64:x=(w-text_w)/2:y=(h-text_h)/2")
     subprocess.run([

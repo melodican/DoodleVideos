@@ -1,12 +1,16 @@
-"""[BROLL] BUILDER — a project folder (+ VO) → stock-footage explainer mp4.
+"""[BROLL] BUILDER — a project folder (+ VO) → captioned explainer/documentary mp4.
 
-Flow: timed segments (reuse the transcript, or Whisper) → group into scenes →
-plan one footage query per scene → fetch a Pexels clip per scene → build caption
-ASS → assemble. Output: video_broll.mp4 (kept separate from the doodle video.mp4
-so you can compare the two renderers side by side).
+Flow: timed segments (reuse the transcript, or Whisper) → scenes → per-scene visual
+(a Pexels stock clip, or an on-hand AI image) → PIL caption PNGs → assemble with
+captions baked in + VO. Output: video_broll.mp4 (kept separate from the doodle
+video.mp4 so you can compare renderers).
 
-Marginal cost ≈ VO + a few pennies; the footage is free. This is the cheap,
-fully-API alternative to Vidrush.
+`source="stock"` fetches footage per scene (needs PEXELS_API_KEY for real clips).
+`source="images"` uses the project's existing AI images (images/NNN.png), one per
+segment — a free, monetization-safe way to prove the captioned assembler end to end.
+
+Marginal cost ≈ VO + a few pennies; footage is free. The cheap, fully-API Vidrush
+alternative and the seed of the Content-Factory documentary renderer.
 """
 from __future__ import annotations
 import os, pathlib
@@ -28,11 +32,23 @@ def find_audio(proj: pathlib.Path):
     return None
 
 
+def _timed_segments(proj: pathlib.Path, vo: pathlib.Path, transcript_path: str | None,
+                    progress) -> list:
+    tpath = pathlib.Path(transcript_path) if transcript_path else (proj / "transcript.txt")
+    if tpath.exists():
+        progress("transcribe", f"Using {tpath.name} (no Whisper cost)")
+        return parse(tpath.read_text(encoding="utf-8"))
+    progress("transcribe", f"Transcribing {vo.name}…")
+    fine = transcribe.transcribe(str(vo))
+    (proj / "transcript.txt").write_text(transcribe.to_transcript_text(fine), encoding="utf-8")
+    return fine
+
+
 def build_broll(project_dir: str, audio_path: str | None = None,
                 transcript_path: str | None = None, topic: str = "",
-                seconds_per_clip: float | None = None, progress=None) -> str:
-    """Build video_broll.mp4 for a project. Reuses transcript.txt when present
-    (free, no Whisper); otherwise transcribes the VO. Calls progress(stage, detail)."""
+                seconds_per_clip: float | None = None, source: str = "stock",
+                motion: bool = False, max_scenes: int | None = None, progress=None) -> str:
+    """Build video_broll.mp4 for a project. Calls progress(stage, detail)."""
     progress = progress or _noop
     proj = pathlib.Path(project_dir); proj.mkdir(parents=True, exist_ok=True)
 
@@ -40,45 +56,47 @@ def build_broll(project_dir: str, audio_path: str | None = None,
     if not vo or not vo.exists():
         raise FileNotFoundError(f"no voiceover found in {proj} (expected vo.mp3)")
 
-    # 1. timed segments — reuse an existing transcript (free) or Whisper
-    tpath = pathlib.Path(transcript_path) if transcript_path else (proj / "transcript.txt")
-    if tpath.exists():
-        progress("transcribe", f"Using {tpath.name} (no Whisper cost)")
-        fine = parse(tpath.read_text(encoding="utf-8"))
-    else:
-        progress("transcribe", f"Transcribing {vo.name}…")
-        fine = transcribe.transcribe(str(vo))
-        (proj / "transcript.txt").write_text(transcribe.to_transcript_text(fine), encoding="utf-8")
-
-    spc = seconds_per_clip if seconds_per_clip else float(os.getenv("SECONDS_PER_CLIP", "6"))
-    scenes = group_segments(fine, spc)
+    fine = _timed_segments(proj, vo, transcript_path, progress)
     secs = audio_duration(str(vo))
-    progress("segments", f"{len(scenes)} scenes · {len(fine)} caption lines")
 
-    # 2. plan one footage query per scene (Claude → heuristic fallback)
-    progress("plan", "Choosing footage for each scene…")
-    queries = visual_plan.plan_queries(scenes, topic=topic)
+    # scenes + visuals: on-hand AI images (one per segment) or fetched stock footage
+    if source == "images":
+        imgs = sorted((proj / "images").glob("*.png"))
+        if not imgs:
+            raise FileNotFoundError(f"no images/ in {proj} for source=images")
+        n = min(len(fine), len(imgs))
+        scenes = fine[:n]
+        visuals = [str(imgs[i]) for i in range(n)]
+    else:
+        spc = seconds_per_clip if seconds_per_clip else float(os.getenv("SECONDS_PER_CLIP", "6"))
+        scenes = group_segments(fine, spc)
+        progress("plan", "Choosing footage for each scene…")
+        queries = visual_plan.plan_queries(scenes, topic=topic)
+        durs = assemble.scene_durations(scenes, secs)
+        fdir = proj / "footage"; visuals = []; real = 0
+        for i, (q, dur) in enumerate(zip(queries, durs)):
+            progress("footage", f"Footage {i + 1}/{len(scenes)}: “{q}”")
+            res = footage.fetch(q, str(fdir / f"{i:03d}.mp4"), seconds=dur)
+            visuals.append(res["path"]); real += res["source"] == "pexels"
+        progress("footage", f"{real}/{len(scenes)} real clips"
+                            + ("" if footage.available() else " (set PEXELS_API_KEY for real footage)"))
 
-    # 3. fetch a clip per scene
-    fdir = proj / "footage"
-    clips, real = [], 0
-    durs = assemble.scene_durations(scenes, secs)
-    for i, (q, dur) in enumerate(zip(queries, durs)):
-        progress("footage", f"Footage {i + 1}/{len(scenes)}: “{q}”")
-        res = footage.fetch(q, str(fdir / f"{i:03d}.mp4"), seconds=dur)
-        clips.append(res["path"])
-        real += res["source"] == "pexels"
-    progress("footage", f"{real}/{len(scenes)} real clips"
-                        + ("" if footage.available() else " (set PEXELS_API_KEY for real footage)"))
+    if max_scenes:                                   # demo excerpt
+        scenes, visuals = scenes[:max_scenes], visuals[:max_scenes]
 
-    # 4. captions
-    progress("captions", "Building captions…")
-    chunks = captions.caption_chunks(fine, secs)
-    ass = captions.to_ass(chunks, str(proj / "captions.ass"))
+    # captions: PIL PNG per chunk (only those inside the kept scenes)
+    progress("captions", "Rendering captions…")
+    scene_end = (scenes[-1].end if scenes[-1].end is not None else secs)
+    cdir = proj / "captions"
+    chunks = []
+    for i, (cs, ce, text) in enumerate(captions.caption_chunks(fine, secs)):
+        if cs >= scene_end:
+            break
+        png = captions.caption_png(text, str(cdir / f"{i:03d}.png"))
+        chunks.append((cs, ce, png))
 
-    # 5. assemble
-    out = assemble.render(clips, scenes, ass, str(vo),
+    out = assemble.render(visuals, scenes, chunks, str(vo),
                           out_path=str(proj / "video_broll.mp4"),
-                          audio_seconds=secs, progress=progress)
+                          audio_seconds=secs, motion=motion, progress=progress)
     progress("done", out)
     return out

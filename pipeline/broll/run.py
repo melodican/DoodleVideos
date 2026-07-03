@@ -19,7 +19,8 @@ def cmd_build(args):
     try:
         out = build_broll(args.project, audio_path=args.audio,
                           transcript_path=args.transcript, topic=args.topic,
-                          seconds_per_clip=args.seconds_per_clip,
+                          seconds_per_clip=args.seconds_per_clip, source=args.source,
+                          motion=args.motion, max_scenes=args.max_scenes,
                           progress=lambda stage, detail="": print(f"[{stage}] {detail}"))
         print(f"rendered: {out}")
     except (FileNotFoundError, RuntimeError) as e:
@@ -27,14 +28,18 @@ def cmd_build(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="B-roll stock-footage explainer renderer")
+    ap = argparse.ArgumentParser(description="B-roll / documentary renderer (captioned)")
     sub = ap.add_subparsers(required=True)
-    b = sub.add_parser("build", help="project folder w/ vo -> stock-footage explainer mp4")
+    b = sub.add_parser("build", help="project folder w/ vo -> captioned explainer mp4")
     b.add_argument("project")
     b.add_argument("--audio", default=None, help="path to VO (default: vo.* in the folder)")
     b.add_argument("--transcript", default=None, help="timed transcript (default: transcript.txt)")
     b.add_argument("--topic", default="", help="topic hint to improve footage queries")
     b.add_argument("--seconds-per-clip", type=float, default=None, help="scene length (default 6)")
+    b.add_argument("--source", choices=["stock", "images"], default="stock",
+                   help="stock=Pexels footage; images=on-hand AI images (images/NNN.png)")
+    b.add_argument("--motion", action="store_true", help="Ken Burns motion on still images (slow)")
+    b.add_argument("--max-scenes", type=int, default=None, help="cap scene count (demo excerpts)")
     b.set_defaults(func=cmd_build)
     args = ap.parse_args(); args.func(args)
 

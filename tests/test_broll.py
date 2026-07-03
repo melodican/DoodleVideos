@@ -63,3 +63,21 @@ def test_scene_durations_use_real_times():
     durs = assemble.scene_durations(segs, audio_seconds=18)
     assert durs[0] == 6.0 and durs[1] == 6.0
     assert durs[-1] == 6.0  # last segment runs to audio end (18 - 12)
+
+
+def test_caption_png_renders_file(tmp_path):
+    out = captions.caption_png("no taxes here", str(tmp_path / "c.png"))
+    from PIL import Image
+    im = Image.open(out)
+    assert im.size == (1920, 1080) and im.mode == "RGBA"
+
+
+def test_scene_overlays_are_local_and_windowed():
+    segs = parse(T)  # scene 0 = 0..6, scene 1 = 6..12
+    chunks = [(0.0, 3.0, "a.png"), (3.0, 6.0, "b.png"), (7.0, 9.0, "c.png")]
+    ov0 = assemble.scene_overlays(segs[0], 6.0, chunks)
+    assert [p for _, _, p in ov0] == ["a.png", "b.png"]      # only scene-0 chunks
+    assert ov0[0][:2] == (0.0, 3.0)                          # local time
+    ov1 = assemble.scene_overlays(segs[1], 6.0, chunks)
+    assert [p for _, _, p in ov1] == ["c.png"]
+    assert ov1[0][:2] == (1.0, 3.0)                          # 7..9 global -> 1..3 local

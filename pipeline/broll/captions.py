@@ -1,12 +1,23 @@
 """[BROLL] CAPTIONS — burned-in subtitles, the faceless-video look.
 
 Splits each timed narration segment into short on-screen chunks (a few words at a
-time) and writes a styled ASS file. Timing rides the real per-segment timestamps,
-so captions stay in sync with the VO. ffmpeg burns them in at assembly.
+time). Two render paths:
+  * to_ass(...)      — a styled ASS file (needs an ffmpeg built with libass).
+  * caption_png(...) — a transparent PNG per chunk, composited with the `overlay`
+                       filter. No libass/freetype needed, so it works on stripped
+                       ffmpeg builds — this is the path the assembler uses.
+Timing rides the real per-segment timestamps, so captions stay in sync with the VO.
 """
 from __future__ import annotations
 import pathlib
 from pipeline.doodle.timestamps import Segment
+
+_FONT_CANDIDATES = [
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Impact.ttf",
+    "/Library/Fonts/Arial Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+]
 
 # bold white, thick black outline, bottom-centre — the standard high-retention style
 _ASS_HEAD = """[Script Info]
@@ -48,6 +59,53 @@ def caption_chunks(segments: list[Segment], audio_seconds: float,
             ce = s.start + (k + 1) * span
             out.append((cs, ce, " ".join(g)))
     return out
+
+
+def _font(size: int):
+    from PIL import ImageFont
+    for path in _FONT_CANDIDATES:
+        if pathlib.Path(path).exists():
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:  # noqa: BLE001
+                continue
+    return ImageFont.load_default()
+
+
+def _wrap(draw, text: str, font, max_w: int) -> list[str]:
+    lines, cur = [], ""
+    for word in text.split():
+        trial = f"{cur} {word}".strip()
+        if draw.textlength(trial, font=font) <= max_w or not cur:
+            cur = trial
+        else:
+            lines.append(cur); cur = word
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def caption_png(text: str, out_path: str, width: int = 1920, height: int = 1080,
+                fontsize: int = 84, margin_bottom: int = 150) -> str:
+    """Render a transparent full-frame PNG with `text` at the bottom-centre, bold
+    white with a thick black outline (the high-retention caption look). Composited
+    later with ffmpeg's overlay filter — no libass needed."""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    font = _font(fontsize)
+    lines = _wrap(draw, text.upper(), font, width - 240)
+    line_h = int(fontsize * 1.15)
+    stroke = max(5, fontsize // 14)
+    y = height - margin_bottom - len(lines) * line_h
+    for line in lines:
+        w = draw.textlength(line, font=font)
+        draw.text(((width - w) / 2, y), line, font=font, fill=(255, 255, 255, 255),
+                  stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
+        y += line_h
+    out = pathlib.Path(out_path); out.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out, "PNG")
+    return str(out)
 
 
 def _escape(text: str) -> str:
