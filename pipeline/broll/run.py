@@ -11,7 +11,14 @@ Set PEXELS_API_KEY (free at pexels.com/api) for real footage; without it the bui
 still runs with labelled placeholder cards so you can judge sync + captions.
 """
 from __future__ import annotations
-import argparse, sys
+import argparse, pathlib, sys
+
+try:  # load .env so PEXELS_API_KEY / OPENAI_API_KEY etc. are picked up
+    from dotenv import load_dotenv
+    load_dotenv(pathlib.Path(__file__).parent.parent.parent / ".env")
+except Exception:  # python-dotenv optional; shell env still works
+    pass
+
 from .builder import build_broll
 from .channel import RenderOptions, load_channel
 
