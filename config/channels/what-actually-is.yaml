@@ -1,0 +1,10 @@
+# Channel blueprint — short-form finance explainer ("What Actually Is").
+# Fast-paced, high-retention: burned captions ON.
+name: What Actually Is
+format: explainer
+render:
+  source: images         # hand-drawn AI doodles, one per beat
+  captions: "on"         # burned captions help retention on snappy explainers
+  caption_style: bold
+  motion: false
+  seconds_per_clip: 5

@@ -1,0 +1,10 @@
+# Channel blueprint — long-form YouTube documentary.
+# Clean cinematic frame: NO burned captions (viewers get YouTube's own CC).
+name: Rise & Ruin
+format: long_form_documentary
+render:
+  source: stock          # real footage per beat (Pexels + archival)
+  captions: "off"        # long-form docs read better without burned-in text
+  caption_style: bold    # (unused while captions are off; kept for easy A/B)
+  motion: true           # Ken Burns on any still images
+  seconds_per_clip: 6

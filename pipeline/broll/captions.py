@@ -85,12 +85,22 @@ def _wrap(draw, text: str, font, max_w: int) -> list[str]:
     return lines
 
 
-def caption_png(text: str, out_path: str, width: int = 1920, height: int = 1080,
-                fontsize: int = 84, margin_bottom: int = 150) -> str:
+# named caption looks, selectable per channel/format (see channel blueprints)
+STYLES = {
+    "bold": {"fontsize": 84, "margin_bottom": 150},      # punchy, high-retention
+    "minimal": {"fontsize": 60, "margin_bottom": 90},    # smaller, less intrusive
+    "lower": {"fontsize": 72, "margin_bottom": 70},      # closer to the edge
+}
+
+
+def caption_png(text: str, out_path: str, style: str = "bold",
+                width: int = 1920, height: int = 1080) -> str:
     """Render a transparent full-frame PNG with `text` at the bottom-centre, bold
     white with a thick black outline (the high-retention caption look). Composited
-    later with ffmpeg's overlay filter — no libass needed."""
+    later with ffmpeg's overlay filter — no libass needed. `style` selects a preset."""
     from PIL import Image, ImageDraw
+    cfg = STYLES.get(style, STYLES["bold"])
+    fontsize, margin_bottom = cfg["fontsize"], cfg["margin_bottom"]
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     font = _font(fontsize)

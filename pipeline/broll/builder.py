@@ -47,8 +47,13 @@ def _timed_segments(proj: pathlib.Path, vo: pathlib.Path, transcript_path: str |
 def build_broll(project_dir: str, audio_path: str | None = None,
                 transcript_path: str | None = None, topic: str = "",
                 seconds_per_clip: float | None = None, source: str = "stock",
-                motion: bool = False, max_scenes: int | None = None, progress=None) -> str:
-    """Build video_broll.mp4 for a project. Calls progress(stage, detail)."""
+                motion: bool = False, captions_on: bool = False,
+                caption_style: str = "bold", max_scenes: int | None = None,
+                progress=None) -> str:
+    """Build video_broll.mp4 for a project. Calls progress(stage, detail).
+
+    Captions are OFF by default — a channel/format choice (see channel blueprints),
+    not a universal default. Long-form documentaries typically render clean."""
     progress = progress or _noop
     proj = pathlib.Path(project_dir); proj.mkdir(parents=True, exist_ok=True)
 
@@ -84,16 +89,19 @@ def build_broll(project_dir: str, audio_path: str | None = None,
     if max_scenes:                                   # demo excerpt
         scenes, visuals = scenes[:max_scenes], visuals[:max_scenes]
 
-    # captions: PIL PNG per chunk (only those inside the kept scenes)
-    progress("captions", "Rendering captions…")
-    scene_end = (scenes[-1].end if scenes[-1].end is not None else secs)
-    cdir = proj / "captions"
+    # captions: opt-in per channel/format. Off = clean frame (long-form docs).
     chunks = []
-    for i, (cs, ce, text) in enumerate(captions.caption_chunks(fine, secs)):
-        if cs >= scene_end:
-            break
-        png = captions.caption_png(text, str(cdir / f"{i:03d}.png"))
-        chunks.append((cs, ce, png))
+    if captions_on:
+        progress("captions", f"Rendering captions ({caption_style})…")
+        scene_end = (scenes[-1].end if scenes[-1].end is not None else secs)
+        cdir = proj / "captions"
+        for i, (cs, ce, text) in enumerate(captions.caption_chunks(fine, secs)):
+            if cs >= scene_end:
+                break
+            png = captions.caption_png(text, str(cdir / f"{i:03d}.png"), style=caption_style)
+            chunks.append((cs, ce, png))
+    else:
+        progress("captions", "Captions off (clean frame)")
 
     out = assemble.render(visuals, scenes, chunks, str(vo),
                           out_path=str(proj / "video_broll.mp4"),

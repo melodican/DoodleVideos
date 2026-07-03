@@ -1,6 +1,6 @@
 """B-roll renderer: pure-logic tests (no network, no ffmpeg)."""
 from pipeline.doodle.timestamps import parse
-from pipeline.broll import captions, visual_plan, footage, assemble
+from pipeline.broll import captions, visual_plan, footage, assemble, channel
 
 T = """(0:00) Imagine you and four friends find a desert island with no taxes.
 (0:06) Within a week you would invent taxes all over again.
@@ -66,10 +66,30 @@ def test_scene_durations_use_real_times():
 
 
 def test_caption_png_renders_file(tmp_path):
-    out = captions.caption_png("no taxes here", str(tmp_path / "c.png"))
+    out = captions.caption_png("no taxes here", str(tmp_path / "c.png"), style="minimal")
     from PIL import Image
     im = Image.open(out)
     assert im.size == (1920, 1080) and im.mode == "RGBA"
+
+
+def test_render_options_default_captions_off():
+    opts = channel.RenderOptions()
+    assert opts.captions == "off" and opts.captions_on is False   # not forced on
+    assert channel.RenderOptions(captions="on").captions_on is True
+
+
+def test_render_options_from_dict_ignores_unknown():
+    opts = channel.render_options_from_dict({"captions": "on", "motion": True, "bogus": 1})
+    assert opts.captions_on is True and opts.motion is True
+
+
+def test_load_channel_blueprints():
+    # long-form documentary blueprint: captions OFF
+    doc = channel.load_channel("rise-and-ruin")
+    assert doc.captions_on is False and doc.source == "stock"
+    # explainer blueprint: captions ON
+    exp = channel.load_channel("what-actually-is")
+    assert exp.captions_on is True and exp.source == "images"
 
 
 def test_scene_overlays_are_local_and_windowed():
