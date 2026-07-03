@@ -62,20 +62,22 @@ def _pick_file(video: dict) -> str | None:
     return cands[0].get("link")
 
 
-def _score(video: dict, qwords: set[str]) -> float:
+def _score(video: dict, qwords: set[str], allow_people: bool = False,
+           avoid: frozenset[str] = frozenset()) -> float:
     """Higher = better match. Rewards slug overlap + HD landscape; penalises
-    generic-people clips when the query isn't about people."""
+    generic-people clips (unless allowed) and clips whose concept repeats the
+    previous shot (`avoid` = the previous chosen clip's slug words)."""
     slug = _slug_words(video)
-    overlap = len(qwords & slug)
-    score = overlap * 10.0
+    score = len(qwords & slug) * 10.0
     w, h = video.get("width") or 0, video.get("height") or 0
     if w >= h and w >= 1280:
         score += 3
     if 4 <= (video.get("duration") or 0) <= 60:
         score += 1
-    wants_people = bool(qwords & _PEOPLE_INTENT)
+    wants_people = allow_people or bool(qwords & _PEOPLE_INTENT)
     if not wants_people and (slug & _PEOPLE_GENERIC):
         score -= 6                       # deprioritise generic stock-people B-roll
+    score -= len(slug & avoid) * 4       # repetition guard: avoid same concept as prev shot
     return score
 
 
@@ -91,10 +93,12 @@ def search_candidates(query: str, per_page: int = 12) -> list[dict]:
     return r.json().get("videos", [])
 
 
-def select_best(videos: list[dict], query: str, seen_ids: set | None = None) -> dict | None:
+def select_best(videos: list[dict], query: str, seen_ids: set | None = None,
+                allow_people: bool = False, avoid_slugs: set | None = None) -> dict | None:
     """Re-rank candidates and return the best unused one (for variety)."""
     qwords = _words(query)
-    ranked = sorted(videos, key=lambda v: _score(v, qwords), reverse=True)
+    avoid = frozenset(avoid_slugs or ())
+    ranked = sorted(videos, key=lambda v: _score(v, qwords, allow_people, avoid), reverse=True)
     seen = seen_ids if seen_ids is not None else set()
     for v in ranked:
         if v.get("id") not in seen and _pick_file(v):
@@ -137,23 +141,23 @@ def _placeholder(query: str, out_path: str, seconds: float = 5.0) -> str:
     return str(out)
 
 
-def fetch(query: str, out_path: str, seconds: float = 5.0,
-          seen_ids: set | None = None) -> dict:
-    """Get the best clip for `query`. Returns {path, source, query, score, id}.
+def fetch(query: str, out_path: str, seconds: float = 5.0, seen_ids: set | None = None,
+          allow_people: bool = False, avoid_slugs: set | None = None) -> dict:
+    """Get the best clip for `query`. Returns {path, source, query, id, slug}.
+    `slug` = the chosen clip's concept words (feed as the next shot's avoid_slugs).
     Never raises on a missing key / no result — falls back to a placeholder."""
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg not found on PATH.")
     try:
-        best = select_best(search_candidates(query), query, seen_ids)
+        best = select_best(search_candidates(query), query, seen_ids, allow_people, avoid_slugs)
         if best:
             link = _pick_file(best)
             if link:
                 if seen_ids is not None:
                     seen_ids.add(best.get("id"))
                 return {"path": download(link, out_path), "source": "pexels",
-                        "query": query, "score": _score(best, _words(query)),
-                        "id": best.get("id")}
+                        "query": query, "id": best.get("id"), "slug": _slug_words(best)}
     except Exception:  # noqa: BLE001 - degrade to placeholder, never break the run
         pass
     return {"path": _placeholder(query, out_path, seconds), "source": "placeholder",
-            "query": query, "score": 0.0, "id": None}
+            "query": query, "id": None, "slug": set()}

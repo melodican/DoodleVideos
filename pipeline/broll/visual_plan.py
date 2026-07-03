@@ -36,8 +36,9 @@ def keywords_for(text: str, topic: str = "", n: int = 2) -> str:
     Falls back to the channel/topic when a line is too abstract to visualise."""
     words = re.findall(r"[A-Za-z']+", text.lower())
     cand = [w for w in words if len(w) > 3 and w not in _STOP]
+    topic_word = topic.split()[-1] if topic else ""    # "what is tax" -> "tax"
     if not cand:
-        return topic or "abstract background"
+        return topic_word or "abstract background"
     cand.sort(key=lambda w: (0 if _BOOST.match(w) else 1, -len(w)))
     seen, picked = set(), []
     for w in cand:
@@ -46,8 +47,8 @@ def keywords_for(text: str, topic: str = "", n: int = 2) -> str:
         if len(picked) >= n:
             break
     # if nothing concrete surfaced, lean on the topic so we don't get generic B-roll
-    if topic and not any(_BOOST.match(w) for w in picked):
-        return f"{topic.split()[-1]} {picked[0]}"
+    if topic_word and not any(_BOOST.match(w) for w in picked):
+        return f"{topic_word} {picked[0]}"
     return " ".join(picked)
 
 

@@ -17,7 +17,7 @@ import os, pathlib
 from pipeline.doodle import transcribe
 from pipeline.doodle.timestamps import parse, group_segments
 from pipeline.doodle.assemble import audio_duration
-from . import footage, visual_plan, captions, assemble
+from . import footage, visual_plan, captions, assemble, director
 
 
 def _noop(stage: str, detail: str = "") -> None:
@@ -70,6 +70,8 @@ def build_broll(project_dir: str, audio_path: str | None = None,
         if not imgs:
             raise FileNotFoundError(f"no images/ in {proj} for source=images")
         n = min(len(fine), len(imgs))
+        if max_scenes:
+            n = min(n, max_scenes)
         scenes = fine[:n]
         visuals = [str(imgs[i]) for i in range(n)]
     else:
@@ -78,20 +80,24 @@ def build_broll(project_dir: str, audio_path: str | None = None,
         if max_scenes:
             scenes = scenes[:max_scenes]        # plan/fetch only what we'll use
         progress("plan", "Choosing footage for each scene…")
-        queries, director = visual_plan.plan_queries(scenes, topic=topic,
-                                                     require_director=require_director)
-        progress("plan", f"Director: {director}")       # explicit — no hidden fallback
+        base_queries, director_src = visual_plan.plan_queries(scenes, topic=topic,
+                                                             require_director=require_director)
+        progress("plan", f"Director: {director_src}")   # explicit — no hidden fallback
+        # editorial layer: roles + multi-clip beats -> a directed shot list
+        scenes = director.build_shots(scenes, base_queries, secs, topic=topic)
         durs = assemble.scene_durations(scenes, secs)
-        fdir = proj / "footage"; visuals = []; real = 0; seen: set = set()
-        for i, (q, dur) in enumerate(zip(queries, durs)):
-            progress("footage", f"Footage {i + 1}/{len(scenes)}: “{q}”")
-            res = footage.fetch(q, str(fdir / f"{i:03d}.mp4"), seconds=dur, seen_ids=seen)
+        fdir = proj / "footage"; visuals = []; real = 0
+        seen: set = set(); recent: list[set] = []       # rolling window of recent concepts
+        for i, (shot, dur) in enumerate(zip(scenes, durs)):
+            progress("footage", f"Shot {i + 1}/{len(scenes)} [{shot.role}]: “{shot.query}”")
+            avoid = set().union(*recent) if recent else set()
+            res = footage.fetch(shot.query, str(fdir / f"{i:03d}.mp4"), seconds=dur,
+                                seen_ids=seen, allow_people=shot.allow_people, avoid_slugs=avoid)
             visuals.append(res["path"]); real += res["source"] == "pexels"
-        progress("footage", f"{real}/{len(scenes)} real clips"
+            recent.append(res.get("slug", set()))       # repetition guard across a window
+            recent = recent[-3:]                         # look back the last 3 shots
+        progress("footage", f"{real}/{len(scenes)} real clips ({director_src.split(' ')[0]} director)"
                             + ("" if footage.available() else " (set PEXELS_API_KEY for real footage)"))
-
-    if max_scenes:                                   # demo excerpt
-        scenes, visuals = scenes[:max_scenes], visuals[:max_scenes]
 
     # captions: opt-in per channel/format. Off = clean frame (long-form docs).
     chunks = []
