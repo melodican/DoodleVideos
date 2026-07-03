@@ -23,6 +23,7 @@ class RenderOptions:
     caption_style: str = "bold"      # bold | minimal | lower (see captions.STYLES)
     motion: bool = False             # Ken Burns on stills (perf-heavy)
     seconds_per_clip: float | None = None
+    require_director: bool = False   # True = LLM footage director mandatory (no heuristic)
 
     @property
     def captions_on(self) -> bool:

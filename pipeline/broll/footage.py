@@ -1,15 +1,27 @@
 """[BROLL] FOOTAGE — fetch a stock clip per scene from Pexels (free API).
 
 `PEXELS_API_KEY` (free at pexels.com/api) enables real footage. With no key we
-fall back to a generated placeholder card so the whole pipeline still runs and you
-can judge sync/captions/assembly before signing up. Marginal cost: £0 (Pexels is
-free); this is the piece that replaces Vidrush's expensive web-footage step.
+fall back to a generated placeholder card so the whole pipeline still runs.
+
+Selection is not "take the first hit": for each query we fetch several candidates
+and re-rank them by how well the clip's Pexels slug matches the query, penalising
+generic "stock people" clips on non-people queries and de-duplicating across the
+build. This is the piece that replaces Vidrush's expensive web-footage step.
 """
 from __future__ import annotations
-import os, hashlib, pathlib, subprocess, shutil, functools
+import os, re, hashlib, pathlib, subprocess, shutil, functools
 
 _SEARCH = "https://api.pexels.com/videos/search"
 _FONT = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+
+# slug words that signal generic people/portrait B-roll (the "faceless AI" look)
+_PEOPLE_GENERIC = {"man", "woman", "men", "women", "people", "person", "guy", "girl",
+                   "boy", "portrait", "model", "posing", "smiling", "looking", "face",
+                   "young", "adult", "team", "group", "office", "studio"}
+# query words that legitimately want people on screen (don't penalise then)
+_PEOPLE_INTENT = {"people", "person", "man", "woman", "crowd", "worker", "family",
+                  "friends", "team", "citizens", "protest", "meeting"}
+_STOP = {"the", "a", "an", "and", "or", "of", "to", "in", "on", "with", "for", "video"}
 
 
 @functools.lru_cache(maxsize=1)
@@ -27,6 +39,18 @@ def available() -> bool:
     return bool(os.getenv("PEXELS_API_KEY"))
 
 
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z]+", (text or "").lower())
+            if len(w) > 2 and w not in _STOP}
+
+
+def _slug_words(video: dict) -> set[str]:
+    """Descriptive words from a Pexels result's page URL slug."""
+    url = video.get("url", "") or ""
+    slug = re.sub(r"-\d+/?$", "", url.rstrip("/").rsplit("/", 1)[-1])
+    return _words(slug.replace("-", " "))
+
+
 def _pick_file(video: dict) -> str | None:
     """Choose the best landscape HD-ish file link from a Pexels video result."""
     files = video.get("video_files", [])
@@ -34,26 +58,54 @@ def _pick_file(video: dict) -> str | None:
     cands = landscape or files
     if not cands:
         return None
-    # prefer ~1080p: closest width to 1920 without going wild
     cands.sort(key=lambda f: abs((f.get("width") or 0) - 1920))
     return cands[0].get("link")
 
 
-def search(query: str, orientation: str = "landscape", per_page: int = 5) -> str | None:
-    """Return a stock-video URL for `query`, or None. Requires PEXELS_API_KEY."""
+def _score(video: dict, qwords: set[str]) -> float:
+    """Higher = better match. Rewards slug overlap + HD landscape; penalises
+    generic-people clips when the query isn't about people."""
+    slug = _slug_words(video)
+    overlap = len(qwords & slug)
+    score = overlap * 10.0
+    w, h = video.get("width") or 0, video.get("height") or 0
+    if w >= h and w >= 1280:
+        score += 3
+    if 4 <= (video.get("duration") or 0) <= 60:
+        score += 1
+    wants_people = bool(qwords & _PEOPLE_INTENT)
+    if not wants_people and (slug & _PEOPLE_GENERIC):
+        score -= 6                       # deprioritise generic stock-people B-roll
+    return score
+
+
+def search_candidates(query: str, per_page: int = 12) -> list[dict]:
     key = os.getenv("PEXELS_API_KEY")
     if not key:
-        return None
+        return []
     import requests
     r = requests.get(_SEARCH, headers={"Authorization": key},
-                     params={"query": query, "orientation": orientation,
+                     params={"query": query, "orientation": "landscape",
                              "per_page": per_page, "size": "medium"}, timeout=30)
     r.raise_for_status()
-    for video in r.json().get("videos", []):
-        link = _pick_file(video)
-        if link:
-            return link
-    return None
+    return r.json().get("videos", [])
+
+
+def select_best(videos: list[dict], query: str, seen_ids: set | None = None) -> dict | None:
+    """Re-rank candidates and return the best unused one (for variety)."""
+    qwords = _words(query)
+    ranked = sorted(videos, key=lambda v: _score(v, qwords), reverse=True)
+    seen = seen_ids if seen_ids is not None else set()
+    for v in ranked:
+        if v.get("id") not in seen and _pick_file(v):
+            return v
+    return ranked[0] if ranked and _pick_file(ranked[0]) else None
+
+
+def search(query: str) -> str | None:
+    """Back-compat: best single stock-video URL for `query`, or None."""
+    best = select_best(search_candidates(query), query)
+    return _pick_file(best) if best else None
 
 
 def download(url: str, out_path: str) -> str:
@@ -85,16 +137,23 @@ def _placeholder(query: str, out_path: str, seconds: float = 5.0) -> str:
     return str(out)
 
 
-def fetch(query: str, out_path: str, seconds: float = 5.0) -> dict:
-    """Get a clip for `query`. Returns {path, source, query}. Never raises on a
-    missing key / no result — falls back to a placeholder so the build continues."""
+def fetch(query: str, out_path: str, seconds: float = 5.0,
+          seen_ids: set | None = None) -> dict:
+    """Get the best clip for `query`. Returns {path, source, query, score, id}.
+    Never raises on a missing key / no result — falls back to a placeholder."""
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg not found on PATH.")
     try:
-        url = search(query)
-        if url:
-            return {"path": download(url, out_path), "source": "pexels", "query": query}
+        best = select_best(search_candidates(query), query, seen_ids)
+        if best:
+            link = _pick_file(best)
+            if link:
+                if seen_ids is not None:
+                    seen_ids.add(best.get("id"))
+                return {"path": download(link, out_path), "source": "pexels",
+                        "query": query, "score": _score(best, _words(query)),
+                        "id": best.get("id")}
     except Exception:  # noqa: BLE001 - degrade to placeholder, never break the run
         pass
-    return {"path": _placeholder(query, out_path, seconds),
-            "source": "placeholder", "query": query}
+    return {"path": _placeholder(query, out_path, seconds), "source": "placeholder",
+            "query": query, "score": 0.0, "id": None}

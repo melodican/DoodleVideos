@@ -48,8 +48,8 @@ def build_broll(project_dir: str, audio_path: str | None = None,
                 transcript_path: str | None = None, topic: str = "",
                 seconds_per_clip: float | None = None, source: str = "stock",
                 motion: bool = False, captions_on: bool = False,
-                caption_style: str = "bold", max_scenes: int | None = None,
-                progress=None) -> str:
+                caption_style: str = "bold", require_director: bool = False,
+                max_scenes: int | None = None, progress=None) -> str:
     """Build video_broll.mp4 for a project. Calls progress(stage, detail).
 
     Captions are OFF by default — a channel/format choice (see channel blueprints),
@@ -75,13 +75,17 @@ def build_broll(project_dir: str, audio_path: str | None = None,
     else:
         spc = seconds_per_clip if seconds_per_clip else float(os.getenv("SECONDS_PER_CLIP", "6"))
         scenes = group_segments(fine, spc)
+        if max_scenes:
+            scenes = scenes[:max_scenes]        # plan/fetch only what we'll use
         progress("plan", "Choosing footage for each scene…")
-        queries = visual_plan.plan_queries(scenes, topic=topic)
+        queries, director = visual_plan.plan_queries(scenes, topic=topic,
+                                                     require_director=require_director)
+        progress("plan", f"Director: {director}")       # explicit — no hidden fallback
         durs = assemble.scene_durations(scenes, secs)
-        fdir = proj / "footage"; visuals = []; real = 0
+        fdir = proj / "footage"; visuals = []; real = 0; seen: set = set()
         for i, (q, dur) in enumerate(zip(queries, durs)):
             progress("footage", f"Footage {i + 1}/{len(scenes)}: “{q}”")
-            res = footage.fetch(q, str(fdir / f"{i:03d}.mp4"), seconds=dur)
+            res = footage.fetch(q, str(fdir / f"{i:03d}.mp4"), seconds=dur, seen_ids=seen)
             visuals.append(res["path"]); real += res["source"] == "pexels"
         progress("footage", f"{real}/{len(scenes)} real clips"
                             + ("" if footage.available() else " (set PEXELS_API_KEY for real footage)"))

@@ -39,11 +39,28 @@ def test_keywords_drops_stopwords_and_prefers_concrete():
     assert "would" not in q and "again" not in q
 
 
-def test_plan_queries_heuristic_one_per_scene():
+def test_plan_queries_reports_source_and_falls_back(monkeypatch):
+    # no API key + CLI unavailable -> explicit heuristic source, not a silent fallback
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(visual_plan.script_writer, "claude_code_available", lambda: False)
     segs = parse(T)
-    qs = visual_plan.plan_queries(segs, use_claude=False)
-    assert len(qs) == len(segs)
-    assert all(isinstance(q, str) and q for q in qs)
+    qs, source = visual_plan.plan_queries(segs)
+    assert len(qs) == len(segs) and all(qs)
+    assert source.startswith("heuristic")            # explicit about what ran
+
+
+def test_require_director_raises_instead_of_degrading(monkeypatch):
+    import pytest
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(visual_plan.script_writer, "claude_code_available", lambda: False)
+    with pytest.raises(RuntimeError):
+        visual_plan.plan_queries(parse(T), require_director=True)
+
+
+def test_keywords_topic_fallback_on_abstract_lines():
+    # an abstract line yields no concrete noun -> lean on the topic, not generic words
+    q = visual_plan.keywords_for("the concept is basically identical", topic="tax")
+    assert "tax" in q
 
 
 def test_footage_available_and_pick_file(monkeypatch):
@@ -56,6 +73,27 @@ def test_footage_available_and_pick_file(monkeypatch):
     ]}
     assert footage._pick_file(video) == "hd.mp4"   # closest to 1920 wide
     assert footage._pick_file({"video_files": []}) is None
+
+
+def test_footage_reranks_and_penalises_generic_people():
+    island = {"id": 1, "url": "https://www.pexels.com/video/aerial-desert-island-1/",
+              "width": 1920, "height": 1080, "duration": 10,
+              "video_files": [{"link": "a.mp4", "width": 1920, "height": 1080}]}
+    people = {"id": 2, "url": "https://www.pexels.com/video/man-woman-looking-studio-2/",
+              "width": 1920, "height": 1080, "duration": 10,
+              "video_files": [{"link": "b.mp4", "width": 1920, "height": 1080}]}
+    best = footage.select_best([people, island], "desert island")
+    assert best["id"] == 1                          # slug-match beats generic people
+    # de-dup: once seen, the next best is returned
+    seen = {1}
+    assert footage.select_best([people, island], "desert island", seen)["id"] == 2
+
+
+def test_footage_score_people_ok_when_query_wants_people():
+    people = {"id": 3, "url": "https://www.pexels.com/video/crowd-of-people-city-3/",
+              "width": 1920, "height": 1080, "duration": 8, "video_files": []}
+    # query about people should NOT be penalised for a people slug
+    assert footage._score(people, {"crowd", "people"}) > 0
 
 
 def test_scene_durations_use_real_times():
