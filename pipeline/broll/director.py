@@ -94,6 +94,7 @@ class Shot:
     role: str
     allow_people: bool
     shot_type: str = ""
+    base_query: str = ""        # the query without shot-type framing (literal fallback)
 
 
 def _framed(query: str, role: str, counter: dict) -> tuple[str, str]:
@@ -105,9 +106,12 @@ def _framed(query: str, role: str, counter: dict) -> tuple[str, str]:
 
 
 def build_shots(scenes: list[Segment], base_queries: list[str], audio_seconds: float,
-                topic: str = "", roles: list[str] | None = None) -> list[Shot]:
-    """Expand scenes into an editorially-directed shot list. `roles`, when given
-    (e.g. from a real director plan), overrides heuristic role classification."""
+                topic: str = "", roles: list[str] | None = None,
+                multi: list[list[str]] | None = None) -> list[Shot]:
+    """Expand scenes into an editorially-directed shot list. `roles`/`multi`, when
+    given (from a real director plan), override heuristic role + multi-clip logic:
+    `multi[i]` is a list of curated sub-queries to use for beat i instead of the
+    keyword split."""
     shots: list[Shot] = []
     ab_idx = 0
     prev_query = None
@@ -116,36 +120,38 @@ def build_shots(scenes: list[Segment], base_queries: list[str], audio_seconds: f
         end = s.end if s.end is not None else audio_seconds
         dur = end - s.start
         role = roles[i] if roles else classify_role(s.text, i, len(scenes))
+        allow_people = role == "human"
 
-        # multi-clip beats: split enumerations into 2–3 short shots (varied framing)
-        if role == "process" and dur >= 4:
+        # multi-clip beats: prefer the director's curated sub-queries, else split text
+        sub_qs = None
+        if multi and i < len(multi) and multi[i] and len(multi[i]) >= 2:
+            sub_qs = multi[i][:4]
+        elif role == "process" and dur >= 4 and not (multi and i < len(multi) and multi[i]):
             items = _split_items(s.text, topic)
             if len(items) >= 2:
-                k = min(3, len(items))
-                sub = dur / k
-                for j in range(k):
-                    st = s.start + j * sub
-                    fq, stype = _framed(items[j], role, counter)
-                    shots.append(Shot(st, st + sub, s.text, fq, role, False, stype))
-                prev_query = items[k - 1]
-                continue
+                sub_qs = items[:3]
+        if sub_qs and dur >= 3:
+            k = len(sub_qs)
+            step = dur / k
+            for j, base in enumerate(sub_qs):
+                st = s.start + j * step
+                fq, stype = _framed(base, role, counter)
+                shots.append(Shot(st, st + step, s.text, fq, role, allow_people, stype, base))
+            prev_query = sub_qs[-1]
+            continue
 
         if role == "abstract" and roles is None:     # heuristic: use concept visuals
-            query, allow = ABSTRACT_VISUALS[ab_idx % len(ABSTRACT_VISUALS)], False
-            ab_idx += 1
-        elif role == "abstract":                      # plan supplied a concept query
-            query, allow = q, False
-        elif role == "human":
-            query, allow = q, True
+            base = ABSTRACT_VISUALS[ab_idx % len(ABSTRACT_VISUALS)]; ab_idx += 1
         else:
-            query, allow = q, False
+            base = q                                  # plan/keyword query (incl. abstract)
 
-        query, stype = _framed(query, role, counter)
+        query, stype = _framed(base, role, counter)
         if query == prev_query:                      # no identical query back-to-back
             if role == "abstract":
-                query = ABSTRACT_VISUALS[ab_idx % len(ABSTRACT_VISUALS)]; ab_idx += 1
+                base = ABSTRACT_VISUALS[ab_idx % len(ABSTRACT_VISUALS)]; ab_idx += 1
+                query = base
             elif topic:
                 query = f"{query} {topic.split()[-1]}"
-        shots.append(Shot(s.start, end, s.text, query, role, allow, stype))
+        shots.append(Shot(s.start, end, s.text, query, role, allow_people, stype, base))
         prev_query = query
     return shots

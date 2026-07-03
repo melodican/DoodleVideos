@@ -174,17 +174,30 @@ def _placeholder(query: str, out_path: str, seconds: float = 5.0) -> str:
     return str(out)
 
 
+def _overlap(video: dict, query: str) -> int:
+    return len(_words(query) & _slug_words(video))
+
+
 def fetch(query: str, out_path: str, seconds: float = 5.0, seen_ids: set | None = None,
           allow_people: bool = False, avoid_slugs: set | None = None,
-          avoid_classes: set | None = None) -> dict:
+          avoid_classes: set | None = None, fallback_query: str | None = None) -> dict:
     """Get the best clip for `query`. Returns {path, source, query, id, slug, klass}.
-    `slug`/`klass` describe the chosen clip (feed forward as the next shots' avoid).
+    If the best match for `query` is off-subject (no slug overlap) and a distinct
+    `fallback_query` (e.g. the literal query without shot-type framing) is given,
+    retry with it and keep whichever actually matches — avoids wrong-subject clips.
     Never raises on a missing key / no result — falls back to a placeholder."""
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg not found on PATH.")
     try:
         best = select_best(search_candidates(query), query, seen_ids, allow_people,
                            avoid_slugs, avoid_classes)
+        used = query
+        # literal-subject fallback: primary returned nothing on-topic
+        if fallback_query and fallback_query != query and (not best or _overlap(best, query) == 0):
+            alt = select_best(search_candidates(fallback_query), fallback_query, seen_ids,
+                             allow_people, avoid_slugs, avoid_classes)
+            if alt and (not best or _overlap(alt, fallback_query) > _overlap(best, query)):
+                best, used = alt, fallback_query
         if best:
             link = _pick_file(best)
             if link:
@@ -192,7 +205,7 @@ def fetch(query: str, out_path: str, seconds: float = 5.0, seen_ids: set | None 
                     seen_ids.add(best.get("id"))
                 slug = _slug_words(best)
                 return {"path": download(link, out_path), "source": "pexels",
-                        "query": query, "id": best.get("id"), "slug": slug,
+                        "query": used, "id": best.get("id"), "slug": slug,
                         "klass": classify_class(slug)}
     except Exception:  # noqa: BLE001 - degrade to placeholder, never break the run
         pass

@@ -81,17 +81,20 @@ def build_broll(project_dir: str, audio_path: str | None = None,
         if max_scenes:
             scenes = scenes[:max_scenes]        # plan/fetch only what we'll use
         progress("plan", "Choosing footage for each scene…")
-        plan_roles = None
+        plan_roles = plan_multi = None
         if director_plan:                               # real director output (agent/LLM/API)
-            base_queries = [str(p.get("query", "")) for p in director_plan[:len(scenes)]]
-            plan_roles = [p.get("role") for p in director_plan[:len(scenes)]]
+            plan = director_plan[:len(scenes)]
+            base_queries = [str(p.get("query") or (p.get("queries") or [""])[0]) for p in plan]
+            plan_roles = [p.get("role") for p in plan]
+            plan_multi = [p.get("queries") for p in plan]   # curated multi-clip sub-queries
             director_src = "provided-plan (director)"
         else:
             base_queries, director_src = visual_plan.plan_queries(
                 scenes, topic=topic, require_director=require_director)
         progress("plan", f"Director: {director_src}")   # explicit — no hidden fallback
         # editorial layer: roles + multi-clip beats + shot-type -> a directed shot list
-        scenes = director.build_shots(scenes, base_queries, secs, topic=topic, roles=plan_roles)
+        scenes = director.build_shots(scenes, base_queries, secs, topic=topic,
+                                      roles=plan_roles, multi=plan_multi)
         durs = assemble.scene_durations(scenes, secs)
         fdir = proj / "footage"; visuals = []; real = 0
         seen: set = set()
@@ -102,7 +105,8 @@ def build_broll(project_dir: str, audio_path: str | None = None,
             avoid = set().union(*recent_slugs) if recent_slugs else set()
             res = footage.fetch(shot.query, str(fdir / f"{i:03d}.mp4"), seconds=dur,
                                 seen_ids=seen, allow_people=shot.allow_people,
-                                avoid_slugs=avoid, avoid_classes=set(recent_classes))
+                                avoid_slugs=avoid, avoid_classes=set(recent_classes),
+                                fallback_query=shot.base_query or None)
             visuals.append(res["path"]); real += res["source"] == "pexels"
             recent_slugs.append(res.get("slug", set())); recent_slugs = recent_slugs[-3:]
             recent_classes.append(res.get("klass", "other")); recent_classes = recent_classes[-2:]

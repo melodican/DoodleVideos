@@ -148,6 +148,32 @@ def test_footage_classify_class_and_diversity_penalty():
     assert penalised < base                           # same object class as recent -> penalised
 
 
+def test_build_shots_uses_curated_multi_queries():
+    segs = parse("(0:00) intro.\n(0:08) one fishes one builds one collects.")
+    multi = [None, ["man fishing", "building shelter", "gathering wood"]]
+    shots = director.build_shots(segs, ["island", "survival"], audio_seconds=20,
+                                 roles=["establishing", "process"], multi=multi)
+    # beat 1 became 3 director-curated shots (not heuristic keyword splits)
+    bases = [s.base_query for s in shots]
+    assert "man fishing" in bases and "gathering wood" in bases
+    assert len(shots) == 4                             # 1 + 3
+
+
+def test_shot_carries_base_query_for_fallback():
+    segs = parse("(0:00) a wide city establishing beat.")
+    shots = director.build_shots(segs, ["city skyline"], audio_seconds=6,
+                                 roles=["establishing"])
+    s = shots[0]
+    assert s.base_query == "city skyline"              # unframed literal
+    assert s.base_query in s.query                      # framing wraps the base
+
+
+def test_footage_overlap_helper():
+    v = {"url": "https://www.pexels.com/video/capitol-government-building-1/"}
+    assert footage._overlap(v, "capitol government building") == 3
+    assert footage._overlap(v, "pizza slices") == 0
+
+
 def test_build_shots_varies_shot_type_and_takes_role_override():
     segs = parse("(0:00) one.\n(0:06) two.\n(0:12) three.")
     # force all establishing via role override -> framing should rotate (aerial/wide/drone)
