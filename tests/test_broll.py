@@ -137,6 +137,26 @@ def test_build_shots_no_identical_query_back_to_back():
     assert all(a != b for a, b in zip(qs, qs[1:]))    # no repeat adjacent
 
 
+def test_footage_classify_class_and_diversity_penalty():
+    assert footage.classify_class({"tax", "form"}) == "document"
+    assert footage.classify_class({"aerial", "city", "skyline"}) == "institutional"
+    assert footage.classify_class({"desert", "island"}) == "environment"
+    v = {"id": 5, "url": "https://www.pexels.com/video/tax-form-desk-5/",
+         "width": 1920, "height": 1080, "duration": 8, "video_files": []}
+    base = footage._score(v, {"tax"})
+    penalised = footage._score(v, {"tax"}, avoid_classes=frozenset({"document"}))
+    assert penalised < base                           # same object class as recent -> penalised
+
+
+def test_build_shots_varies_shot_type_and_takes_role_override():
+    segs = parse("(0:00) one.\n(0:06) two.\n(0:12) three.")
+    # force all establishing via role override -> framing should rotate (aerial/wide/drone)
+    shots = director.build_shots(segs, ["city", "city", "city"], audio_seconds=18,
+                                 roles=["establishing", "establishing", "establishing"])
+    assert all(s.role == "establishing" for s in shots)
+    assert len({s.shot_type for s in shots}) > 1       # shot-type varies across shots
+
+
 def test_scene_durations_use_real_times():
     segs = parse(T)
     durs = assemble.scene_durations(segs, audio_seconds=18)

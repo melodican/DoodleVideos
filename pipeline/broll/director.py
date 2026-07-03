@@ -74,6 +74,17 @@ def _split_items(text: str, topic: str = "") -> list[str]:
     return items[:3]
 
 
+# shot-type framings per role — rotated so even a repeated subject changes framing
+SHOT_TYPES = {
+    "establishing": ["aerial", "wide landscape", "drone"],
+    "process": ["close up", "", "macro"],
+    "human": ["", "hands closeup"],
+    "reveal": ["close up", "macro"],
+    "transition": ["aerial", "wide"],
+    "abstract": [""],
+}
+
+
 @dataclass
 class Shot:
     start: float
@@ -82,20 +93,31 @@ class Shot:
     query: str
     role: str
     allow_people: bool
+    shot_type: str = ""
+
+
+def _framed(query: str, role: str, counter: dict) -> tuple[str, str]:
+    """Add a rotating shot-type modifier so framing varies across shots."""
+    palette = SHOT_TYPES.get(role, [""])
+    st = palette[counter.get(role, 0) % len(palette)]
+    counter[role] = counter.get(role, 0) + 1
+    return (f"{st} {query}".strip() if st else query), st
 
 
 def build_shots(scenes: list[Segment], base_queries: list[str], audio_seconds: float,
-                topic: str = "") -> list[Shot]:
-    """Expand scenes into an editorially-directed shot list."""
+                topic: str = "", roles: list[str] | None = None) -> list[Shot]:
+    """Expand scenes into an editorially-directed shot list. `roles`, when given
+    (e.g. from a real director plan), overrides heuristic role classification."""
     shots: list[Shot] = []
     ab_idx = 0
     prev_query = None
+    counter: dict = {}
     for i, (s, q) in enumerate(zip(scenes, base_queries)):
         end = s.end if s.end is not None else audio_seconds
         dur = end - s.start
-        role = classify_role(s.text, i, len(scenes))
+        role = roles[i] if roles else classify_role(s.text, i, len(scenes))
 
-        # multi-clip beats: split enumerations into 2–3 short shots
+        # multi-clip beats: split enumerations into 2–3 short shots (varied framing)
         if role == "process" and dur >= 4:
             items = _split_items(s.text, topic)
             if len(items) >= 2:
@@ -103,23 +125,27 @@ def build_shots(scenes: list[Segment], base_queries: list[str], audio_seconds: f
                 sub = dur / k
                 for j in range(k):
                     st = s.start + j * sub
-                    shots.append(Shot(st, st + sub, s.text, items[j], role, False))
+                    fq, stype = _framed(items[j], role, counter)
+                    shots.append(Shot(st, st + sub, s.text, fq, role, False, stype))
                 prev_query = items[k - 1]
                 continue
 
-        if role == "abstract":
+        if role == "abstract" and roles is None:     # heuristic: use concept visuals
             query, allow = ABSTRACT_VISUALS[ab_idx % len(ABSTRACT_VISUALS)], False
             ab_idx += 1
+        elif role == "abstract":                      # plan supplied a concept query
+            query, allow = q, False
         elif role == "human":
             query, allow = q, True
         else:
             query, allow = q, False
 
+        query, stype = _framed(query, role, counter)
         if query == prev_query:                      # no identical query back-to-back
             if role == "abstract":
                 query = ABSTRACT_VISUALS[ab_idx % len(ABSTRACT_VISUALS)]; ab_idx += 1
             elif topic:
                 query = f"{query} {topic.split()[-1]}"
-        shots.append(Shot(s.start, end, s.text, query, role, allow))
+        shots.append(Shot(s.start, end, s.text, query, role, allow, stype))
         prev_query = query
     return shots

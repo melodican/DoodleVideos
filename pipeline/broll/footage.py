@@ -23,6 +23,33 @@ _PEOPLE_INTENT = {"people", "person", "man", "woman", "crowd", "worker", "family
                   "friends", "team", "citizens", "protest", "meeting"}
 _STOP = {"the", "a", "an", "and", "or", "of", "to", "in", "on", "with", "for", "video"}
 
+# visual object classes — used to stop the same subject class repeating back to back
+_CLASSES = {
+    "document": {"form", "forms", "paper", "paperwork", "document", "documents", "tax",
+                 "taxes", "contract", "receipt", "file", "files", "filing", "invoice"},
+    "money": {"money", "cash", "coin", "coins", "dollar", "dollars", "currency", "bank",
+              "wallet", "payment", "banknote", "budget", "salary", "wage"},
+    "human": {"man", "woman", "men", "women", "people", "person", "crowd", "worker",
+              "workers", "family", "hands", "child", "children", "team"},
+    "institutional": {"building", "buildings", "government", "office", "city", "court",
+                      "capitol", "skyline", "bridge", "road", "roads", "highway", "school",
+                      "hospital", "police", "factory", "infrastructure", "urban"},
+    "environment": {"island", "beach", "ocean", "sea", "forest", "mountain", "river",
+                    "sky", "nature", "aerial", "landscape", "field", "desert", "water",
+                    "sunset", "coast"},
+    "object": {"fish", "fire", "food", "boat", "tool", "rope", "wood", "firewood",
+               "clock", "calculator", "pencil", "campfire"},
+    "symbolic": {"map", "chart", "graph", "arrow", "scale", "diagram", "globe", "data"},
+}
+
+
+def classify_class(slug: set[str]) -> str:
+    """Coarse visual-object class of a clip (from its slug), for diversity control."""
+    for cls, kws in _CLASSES.items():
+        if slug & kws:
+            return cls
+    return "other"
+
 
 @functools.lru_cache(maxsize=1)
 def _has_drawtext() -> bool:
@@ -63,10 +90,11 @@ def _pick_file(video: dict) -> str | None:
 
 
 def _score(video: dict, qwords: set[str], allow_people: bool = False,
-           avoid: frozenset[str] = frozenset()) -> float:
+           avoid: frozenset[str] = frozenset(),
+           avoid_classes: frozenset[str] = frozenset()) -> float:
     """Higher = better match. Rewards slug overlap + HD landscape; penalises
-    generic-people clips (unless allowed) and clips whose concept repeats the
-    previous shot (`avoid` = the previous chosen clip's slug words)."""
+    generic-people clips (unless allowed), clips whose concept repeats a recent
+    shot (`avoid`), and clips of a visual class used recently (`avoid_classes`)."""
     slug = _slug_words(video)
     score = len(qwords & slug) * 10.0
     w, h = video.get("width") or 0, video.get("height") or 0
@@ -77,7 +105,9 @@ def _score(video: dict, qwords: set[str], allow_people: bool = False,
     wants_people = allow_people or bool(qwords & _PEOPLE_INTENT)
     if not wants_people and (slug & _PEOPLE_GENERIC):
         score -= 6                       # deprioritise generic stock-people B-roll
-    score -= len(slug & avoid) * 4       # repetition guard: avoid same concept as prev shot
+    score -= len(slug & avoid) * 4       # avoid the same concept as a recent shot
+    if classify_class(slug) in avoid_classes:
+        score -= 5                       # avoid the same object class back to back
     return score
 
 
@@ -94,11 +124,14 @@ def search_candidates(query: str, per_page: int = 12) -> list[dict]:
 
 
 def select_best(videos: list[dict], query: str, seen_ids: set | None = None,
-                allow_people: bool = False, avoid_slugs: set | None = None) -> dict | None:
+                allow_people: bool = False, avoid_slugs: set | None = None,
+                avoid_classes: set | None = None) -> dict | None:
     """Re-rank candidates and return the best unused one (for variety)."""
     qwords = _words(query)
     avoid = frozenset(avoid_slugs or ())
-    ranked = sorted(videos, key=lambda v: _score(v, qwords, allow_people, avoid), reverse=True)
+    avoid_c = frozenset(avoid_classes or ())
+    ranked = sorted(videos, key=lambda v: _score(v, qwords, allow_people, avoid, avoid_c),
+                    reverse=True)
     seen = seen_ids if seen_ids is not None else set()
     for v in ranked:
         if v.get("id") not in seen and _pick_file(v):
@@ -142,22 +175,26 @@ def _placeholder(query: str, out_path: str, seconds: float = 5.0) -> str:
 
 
 def fetch(query: str, out_path: str, seconds: float = 5.0, seen_ids: set | None = None,
-          allow_people: bool = False, avoid_slugs: set | None = None) -> dict:
-    """Get the best clip for `query`. Returns {path, source, query, id, slug}.
-    `slug` = the chosen clip's concept words (feed as the next shot's avoid_slugs).
+          allow_people: bool = False, avoid_slugs: set | None = None,
+          avoid_classes: set | None = None) -> dict:
+    """Get the best clip for `query`. Returns {path, source, query, id, slug, klass}.
+    `slug`/`klass` describe the chosen clip (feed forward as the next shots' avoid).
     Never raises on a missing key / no result — falls back to a placeholder."""
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg not found on PATH.")
     try:
-        best = select_best(search_candidates(query), query, seen_ids, allow_people, avoid_slugs)
+        best = select_best(search_candidates(query), query, seen_ids, allow_people,
+                           avoid_slugs, avoid_classes)
         if best:
             link = _pick_file(best)
             if link:
                 if seen_ids is not None:
                     seen_ids.add(best.get("id"))
+                slug = _slug_words(best)
                 return {"path": download(link, out_path), "source": "pexels",
-                        "query": query, "id": best.get("id"), "slug": _slug_words(best)}
+                        "query": query, "id": best.get("id"), "slug": slug,
+                        "klass": classify_class(slug)}
     except Exception:  # noqa: BLE001 - degrade to placeholder, never break the run
         pass
     return {"path": _placeholder(query, out_path, seconds), "source": "placeholder",
-            "query": query, "id": None, "slug": set()}
+            "query": query, "id": None, "slug": set(), "klass": "other"}

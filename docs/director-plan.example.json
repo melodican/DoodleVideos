@@ -1,0 +1,17 @@
+[
+  {"role": "establishing", "query": "tropical island aerial"},
+  {"role": "reveal",       "query": "hundred dollar bill torn"},
+  {"role": "process",      "query": "island survival tasks"},
+  {"role": "establishing", "query": "muddy jungle trail"},
+  {"role": "human",        "query": "friends campfire night"},
+  {"role": "process",      "query": "building rope bridge stream"},
+  {"role": "abstract",     "query": "coins dropping into jar"},
+  {"role": "transition",   "query": "spinning world map"},
+  {"role": "human",        "query": "crowd city street commuters"},
+  {"role": "process",      "query": "public infrastructure city"},
+  {"role": "transition",   "query": "city street pothole"},
+  {"role": "reveal",       "query": "income tax form"},
+  {"role": "establishing", "query": "pizza sliced on table"},
+  {"role": "reveal",       "query": "capitol government building"},
+  {"role": "abstract",     "query": "rising bar chart graph"}
+]

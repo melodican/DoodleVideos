@@ -38,13 +38,18 @@ def cmd_build(args):
         opts.require_director = True
     if args.seconds_per_clip is not None:
         opts.seconds_per_clip = args.seconds_per_clip
+    plan = None
+    if args.plan:
+        import json, pathlib
+        plan = json.loads(pathlib.Path(args.plan).read_text(encoding="utf-8"))
     try:
         out = build_broll(args.project, audio_path=args.audio,
                           transcript_path=args.transcript, topic=args.topic,
                           seconds_per_clip=opts.seconds_per_clip, source=opts.source,
                           motion=opts.motion, captions_on=opts.captions_on,
                           caption_style=opts.caption_style,
-                          require_director=opts.require_director, max_scenes=args.max_scenes,
+                          require_director=opts.require_director, director_plan=plan,
+                          max_scenes=args.max_scenes,
                           progress=lambda stage, detail="": print(f"[{stage}] {detail}"))
         print(f"rendered: {out}")
     except (FileNotFoundError, RuntimeError) as e:
@@ -70,6 +75,8 @@ def main():
     b.add_argument("--motion", action="store_true", help="Ken Burns motion on still images (slow)")
     b.add_argument("--require-director", action="store_true",
                    help="fail if the LLM footage director can't run (no heuristic fallback)")
+    b.add_argument("--plan", default=None,
+                   help="JSON director plan [{query, role}, …] (one per scene); overrides the heuristic")
     b.add_argument("--max-scenes", type=int, default=None, help="cap scene count (demo excerpts)")
     b.set_defaults(func=cmd_build)
     args = ap.parse_args(); args.func(args)

@@ -49,6 +49,7 @@ def build_broll(project_dir: str, audio_path: str | None = None,
                 seconds_per_clip: float | None = None, source: str = "stock",
                 motion: bool = False, captions_on: bool = False,
                 caption_style: str = "bold", require_director: bool = False,
+                director_plan: list | None = None,
                 max_scenes: int | None = None, progress=None) -> str:
     """Build video_broll.mp4 for a project. Calls progress(stage, detail).
 
@@ -80,22 +81,31 @@ def build_broll(project_dir: str, audio_path: str | None = None,
         if max_scenes:
             scenes = scenes[:max_scenes]        # plan/fetch only what we'll use
         progress("plan", "Choosing footage for each scene…")
-        base_queries, director_src = visual_plan.plan_queries(scenes, topic=topic,
-                                                             require_director=require_director)
+        plan_roles = None
+        if director_plan:                               # real director output (agent/LLM/API)
+            base_queries = [str(p.get("query", "")) for p in director_plan[:len(scenes)]]
+            plan_roles = [p.get("role") for p in director_plan[:len(scenes)]]
+            director_src = "provided-plan (director)"
+        else:
+            base_queries, director_src = visual_plan.plan_queries(
+                scenes, topic=topic, require_director=require_director)
         progress("plan", f"Director: {director_src}")   # explicit — no hidden fallback
-        # editorial layer: roles + multi-clip beats -> a directed shot list
-        scenes = director.build_shots(scenes, base_queries, secs, topic=topic)
+        # editorial layer: roles + multi-clip beats + shot-type -> a directed shot list
+        scenes = director.build_shots(scenes, base_queries, secs, topic=topic, roles=plan_roles)
         durs = assemble.scene_durations(scenes, secs)
         fdir = proj / "footage"; visuals = []; real = 0
-        seen: set = set(); recent: list[set] = []       # rolling window of recent concepts
+        seen: set = set()
+        recent_slugs: list[set] = []                    # rolling concept window
+        recent_classes: list[str] = []                  # rolling object-class window
         for i, (shot, dur) in enumerate(zip(scenes, durs)):
-            progress("footage", f"Shot {i + 1}/{len(scenes)} [{shot.role}]: “{shot.query}”")
-            avoid = set().union(*recent) if recent else set()
+            progress("footage", f"Shot {i + 1}/{len(scenes)} [{shot.role}/{shot.shot_type or '-'}]: “{shot.query}”")
+            avoid = set().union(*recent_slugs) if recent_slugs else set()
             res = footage.fetch(shot.query, str(fdir / f"{i:03d}.mp4"), seconds=dur,
-                                seen_ids=seen, allow_people=shot.allow_people, avoid_slugs=avoid)
+                                seen_ids=seen, allow_people=shot.allow_people,
+                                avoid_slugs=avoid, avoid_classes=set(recent_classes))
             visuals.append(res["path"]); real += res["source"] == "pexels"
-            recent.append(res.get("slug", set()))       # repetition guard across a window
-            recent = recent[-3:]                         # look back the last 3 shots
+            recent_slugs.append(res.get("slug", set())); recent_slugs = recent_slugs[-3:]
+            recent_classes.append(res.get("klass", "other")); recent_classes = recent_classes[-2:]
         progress("footage", f"{real}/{len(scenes)} real clips ({director_src.split(' ')[0]} director)"
                             + ("" if footage.available() else " (set PEXELS_API_KEY for real footage)"))
 
